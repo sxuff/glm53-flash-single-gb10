@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_type": "dflash2_drafter",
+  "repository": "vcruz305/GLM-5.3-Flash-DFlash2-GGUF",
+  "revision": "caf6ef0cedd0dc4ac1183c4110266c2e4f58e17c",
+  "variant": "GLM-5.3-Flash-DFlash2-BF16",
+  "license": {
+    "spdx": "CC-BY-NC-ND-4.0",
+    "acceptance_environment_variable": "ACCEPT_DFLASH2_NC_LICENSE",
+    "acceptance_value": "1",
+    "notice": "DFlash2 drafter weights are CC BY-NC-ND 4.0. Set ACCEPT_DFLASH2_NC_LICENSE=1 only if you accept the non-commercial, no-derivatives terms."
+  },
+  "upstream": {
+    "repository": "incoai/GLM-5.3-Flash-DFlash2",
+    "revision": "bf582e4eacc1810f76656d1811693ff6c6737d2a",
+    "selection_reason": "Resolved the repository's main branch during artifact collection. bf582e4e was the live immutable main revision; dc77ff1c was not the resolved head.",
+    "license": "CC-BY-NC-ND-4.0"
+  },
+  "metadata_expected": {
+    "architecture": "dflash",
+    "tensor_count": 81,
+    "vocab_size": 154880,
+    "block_size": 8,
+    "conv_kernel_size": 2,
+    "conv_group_size": 16,
+    "selector_rank": 256,
+    "selector_top_k": 16,
+    "target_layers": [6, 15, 25, 34, 43]
+  },
+  "files": [
+    {
+      "source_path": "GLM-5.3-Flash-DFlash2-BF16.gguf",
+      "final_name": "GLM-5.3-Flash-DFlash2-BF16.gguf",
+      "bytes": 2352022432,
+      "sha256": "4128e3d65d96d9bc1dad0ac5115cfef45cc8142813e2ed3eed5f31e4396a0640",
+      "xet_hash": "b7199f06ec60f1e8a1898975eae46105ebd4d93d2873e1f659de4a9c517bd11b"
+    }
+  ]
+}

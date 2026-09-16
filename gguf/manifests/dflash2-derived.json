@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_type": "dflash2_derived_quantizations",
+  "derived_from": {
+    "manifest": "dflash2.json",
+    "file": "GLM-5.3-Flash-DFlash2-BF16.gguf",
+    "sha256": "4128e3d65d96d9bc1dad0ac5115cfef45cc8142813e2ed3eed5f31e4396a0640"
+  },
+  "runtime": {
+    "repository": "https://github.com/vcruz305/llama.cpp.git",
+    "commit": "4a06ec6187b72313754f5f0c7a394ca5522ad8a2",
+    "tool": "llama-quantize",
+    "tool_bytes": 72488,
+    "tool_sha256": "2aeb5b62975d75968fc77652fd887e0784311a23fb01e77bd902ba764f2e7680"
+  },
+  "files": [
+    {
+      "name": "GLM-5.3-Flash-DFlash2-Q8_0.gguf",
+      "quantization": "Q8_0",
+      "bytes": 1254335392,
+      "sha256": "f324eff9f89179c3a8ff86a195a1c8950e7a4aedd26f9fd781eef36edebd808e"
+    },
+    {
+      "name": "GLM-5.3-Flash-DFlash2-Q4_K_M.gguf",
+      "quantization": "Q4_K_M",
+      "bytes": 697017248,
+      "sha256": "0d7f33cb57a88d98d72e17c691a37f0f4ed8d97b71dc0cb8cc4f7da612b97e2e"
+    }
+  ]
+}

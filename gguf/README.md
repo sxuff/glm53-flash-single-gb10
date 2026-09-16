@@ -1,115 +1,178 @@
-# GLM-5.3 Flash IQ2_XXS + native MTP on one DGX Spark
+# GLM-5.3 Flash UD-IQ2_XXS + DFlash2 on one GB10
 
-A pinned llama.cpp recipe for serving `unsloth/GLM-5.3-Flash-GGUF` UD-IQ2_XXS with native MTP speculative decoding on one NVIDIA GB10 system.
+This directory contains the pinned recipe behind the repository's **28.95 tok/s weighted server-decode** result.
 
-Native MTP n=2 is the default fast profile. No-MTP is retained as the measured control and operational fallback.
+## Measured profile
 
-## Measured comparison
+- Target: `UD-IQ2_XXS`
+- Drafter: `DFlash2 Q4_K_M`
+- DFlash settings: `n_max=3`, `n_min=0`, `p_min=0.30`
+- Context allocation: 8,192 tokens
+- Parallel slots: one
+- Target KV: `q8_0`
+- Flash Attention: enabled
+- Full GPU offload
 
-One fixed-order sweep used four deterministic text workloads per arm, one warm-up followed by one measured 400-token request for each workload. Both arms used the same artifact, llama.cpp commit, 8K context, Flash Attention, seed, and request settings.
+Measured results:
 
-| Mode | Mean server decode rate | Aggregate whole-request rate |
-|---|---:|---:|
-| No MTP | 18.40 tok/s | 18.17 tok/s |
-| Native MTP n=2 | **27.67 tok/s** | **26.56 tok/s** |
+| Metric | Value |
+|---|---:|
+| Weighted server decode | **28.9479739955 tok/s** |
+| Mean per-workload server decode | 30.2772655365 tok/s |
+| Aggregate whole-request | **28.3719040665 tok/s** |
+| Draft acceptance | **63.9149468418%** |
 
-- Mean server decode speedup: **1.50x**, or **+50.36%**
-- Aggregate whole-request speedup: **1.46x**
-- MTP draft acceptance across all eight warm-up and measured requests: **70.38%**
-- Minimum host `MemAvailable`: **17.04 GiB no-MTP**, **13.82 GiB MTP**
-- Service swap and host swap growth: **0 bytes in both measured arms**
+Per-workload server decode:
 
-`Mean server decode rate` is the arithmetic mean of llama.cpp's per-request generation rates. `Aggregate whole-request rate` is 1,600 generated tokens divided by summed request wall time, including prompt processing and first-token latency.
+| Workload | tok/s |
+|---|---:|
+| Prose | 22.0494091339 |
+| Structured | 39.9207548004 |
+| Code | 27.0730602152 |
+| Math | 32.0658379965 |
 
-Per-workload rates and full card values are in [`CARD_VALUES.md`](CARD_VALUES.md). The compact result receipt is [`results/summary.json`](results/summary.json).
+The public receipt is [`results/dflash2-q4km-n3-p030.json`](results/dflash2-q4km-n3-p030.json).
 
-## Exact stack
+## Pinned stack
 
-- Target: `unsloth/GLM-5.3-Flash-GGUF` at `2975ab414d30340466d8c51533c6e91f0cca64c1`
-- Variant: `UD-IQ2_XXS`, four text shards plus BF16 vision projector
-- Verified artifact size: **103,008,962,080 bytes**, or **95.93 GiB**
-- Runtime: `unslothai/llama.cpp` at `629b50552801912b3e2078f9799e4d77213197d7`
-- Runtime patch: two metadata-name mappings for the rewritten text shard and projector
-- Hardware: one NVIDIA DGX Spark or equivalent GB10, 128 GB unified memory
-- Measured context allocation: 8,192 tokens, one slot
+### Target
 
-Exact artifact sizes and SHA-256 values are in [`manifests/target.json`](manifests/target.json). Runtime lineage is in [`manifests/runtime.json`](manifests/runtime.json).
+- Repository: `unsloth/GLM-5.3-Flash-GGUF`
+- Revision: `2975ab414d30340466d8c51533c6e91f0cca64c1`
+- Variant: `UD-IQ2_XXS`
+- Files: four text shards plus one BF16 projector
 
-## Download and verify
+Exact filenames, byte counts, and SHA-256 values are in [`manifests/target.json`](manifests/target.json).
 
-Install the Hugging Face CLI, then run:
+### DFlash2 drafter
+
+- GGUF revision: `caf6ef0cedd0dc4ac1183c4110266c2e4f58e17c`
+- BF16 source file: 2,352,022,432 bytes
+- Derived `Q4_K_M`: 697,017,248 bytes
+- Derived `Q8_0`: 1,254,335,392 bytes
+
+Lineage, metadata fields, hashes, and quantizer provenance are in:
+
+- [`manifests/dflash2.json`](manifests/dflash2.json)
+- [`manifests/dflash2-derived.json`](manifests/dflash2-derived.json)
+- [`manifests/runtime-dflash2-quantizer.json`](manifests/runtime-dflash2-quantizer.json)
+
+The drafter weights are CC BY-NC-ND 4.0. The downloader requires explicit acceptance through `ACCEPT_DFLASH2_NC_LICENSE=1`.
+
+### Runtime
+
+- Repository: `unslothai/llama.cpp`
+- Commit: `d94f44e79aa219d8057e8de21f95360a187ebf41`
+- Effective CUDA architecture: `121a`
+- Patch: [`patches/dflash2-glm5next-architecture.patch`](patches/dflash2-glm5next-architecture.patch)
+
+The complete runtime receipt is [`manifests/runtime-dflash2.json`](manifests/runtime-dflash2.json).
+
+## Download
+
+Download and verify the target:
 
 ```bash
 python3 scripts/download.py \
   --destination "$HOME/models/GLM-5.3-Flash-UD-IQ2_XXS-2975ab41"
 ```
 
-The downloader pins the Hub revision, resumes partial transfers, preserves a 10 GiB free-disk margin, installs the corrected first shard and projector filenames, and verifies all five files against their Git LFS SHA-256 OIDs.
-
-## Build the exact runtime
+Download and verify the BF16 drafter after accepting its license:
 
 ```bash
-./scripts/build_runtime.sh
+ACCEPT_DFLASH2_NC_LICENSE=1 python3 scripts/download.py \
+  --manifest manifests/dflash2.json \
+  --destination "$HOME/models/GLM-5.3-Flash-DFlash2"
 ```
 
-The script fetches the pinned runtime commit, applies the exercised metadata patch, and builds `llama-server` and `llama-bench` for SM121 with CUDA 13.
+## Build
+
+Build the pinned quantizer:
+
+```bash
+RUNTIME_MANIFEST=manifests/runtime-dflash2-quantizer.json \
+SOURCE_DIR="$PWD/runtime/llama.cpp-dflash2-quantizer" \
+BUILD_DIR="$PWD/runtime/llama.cpp-dflash2-quantizer/build-gb10" \
+JOBS=2 ./scripts/build_runtime.sh
+```
+
+Create and verify the local draft quantizations:
+
+```bash
+BUILD_DIR="$PWD/runtime/llama.cpp-dflash2-quantizer/build-gb10" \
+DRAFT_DIR="$HOME/models/GLM-5.3-Flash-DFlash2" \
+./scripts/quantize_dflash2.sh
+```
+
+Build the exercised DFlash-capable server:
+
+```bash
+RUNTIME_MANIFEST=manifests/runtime-dflash2.json \
+SOURCE_DIR="$PWD/runtime/llama.cpp-dflash2" \
+BUILD_DIR="$PWD/runtime/llama.cpp-dflash2/build-gb10" \
+JOBS=2 ./scripts/build_runtime.sh
+```
 
 ## Serve
 
-Default native MTP n=2 profile:
+Start the measured profile:
 
 ```bash
 MODEL_DIR="$HOME/models/GLM-5.3-Flash-UD-IQ2_XXS-2975ab41" \
+DRAFT_DIR="$HOME/models/GLM-5.3-Flash-DFlash2" \
 ./scripts/serve.sh
 ```
 
-No-MTP control:
+The endpoint binds to `http://127.0.0.1:8001/v1`.
+
+Optional overrides:
 
 ```bash
-MODE=no-mtp \
-MODEL_DIR="$HOME/models/GLM-5.3-Flash-UD-IQ2_XXS-2975ab41" \
-./scripts/serve.sh
+CTX=65536                    # context allocation
+DFLASH_N_MAX=3               # draft depth
+DFLASH_P_MIN=0.30            # confidence threshold
+MMPROJ="$MODEL_DIR/mmproj-BF16-glm5next-621d456e.gguf"  # image input
 ```
 
-The OpenAI-compatible endpoint binds to `http://127.0.0.1:8001/v1`. Set `MMPROJ` to the verified projector path when native image input is needed. The measured speed arms did not load the projector.
+Alternative modes remain available:
 
-For a cgroup-enforced zero-swap launch, run the server through a user systemd unit with `MemorySwapMax=0` and monitor host `MemAvailable` separately.
+```bash
+MODE=dflash2-control  # same DFlash-capable runtime and target KV, no drafter
+MODE=mtp              # retained native-MTP runtime
+MODE=no-mtp           # retained no-spec runtime
+```
 
-## Reproduce the sweep
+Before launch, `serve.sh` verifies the target and drafter against their manifests and validates the DFlash2 GGUF metadata.
 
-Start a fresh no-MTP server and collect its arm:
+## Reproduce the measured arm
+
+Start a fresh measured-profile server, then run:
 
 ```bash
 python3 scripts/benchmark.py \
-  --arm no-mtp \
+  --arm dflash2-q4km-n3-p030 \
   --base-url http://127.0.0.1:8001 \
-  --output local/no-mtp.json
+  --output local/dflash2-q4km-n3-p030.json
 ```
 
-Restart the server with native MTP n=2, then collect the second arm:
+The benchmark uses four fixed workloads, one warm-up and one measured request per workload, 400 generated tokens, temperature 0, top-p 1, seed 42, and thinking disabled.
 
-```bash
-python3 scripts/benchmark.py \
-  --arm mtp-n2 \
-  --base-url http://127.0.0.1:8001 \
-  --output local/mtp-n2.json
-```
-
-Generate a compact local summary:
+Regenerate the public comparison receipt:
 
 ```bash
 python3 scripts/analyze.py \
-  --baseline local/no-mtp.json \
-  --treatment local/mtp-n2.json \
-  --output local/summary.json
+  --previous ../results/mtp-k2.json \
+  --new results/dflash2-q4km-n3-p030.json \
+  --card ../assets/glm53-dflash2-result-card.png \
+  --output results/deployment-comparison.json
 ```
 
-Raw responses and host-local traces stay under the ignored `local/` directory. The committed summary contains aggregate timing, acceptance, memory, and lineage fields only.
+Run the repository checks:
+
+```bash
+./scripts/ci.sh
+```
 
 ## Scope
 
-This is one fixed-order, one-repetition operational sweep on one GB10. Rates apply to the pinned artifact, runtime, settings, and four included workloads. Context-depth behavior and other runtimes are separate experiments.
-
-## Attribution and license
-
-llama.cpp provides the runtime and native MTP implementation. Unsloth provides the exercised GGUF artifact and rewritten shard metadata. Z.ai provides GLM-5.3 Flash. Model weights are not included and retain their upstream terms. Repository scripts and documentation are MIT licensed.
+This is a one-repetition operational sweep on one GB10. The previous and new deployments use different artifacts, runtimes, and context allocations, so the headline is a deployment comparison rather than an isolated component A/B test. The measured DFlash2 result used an 8K allocation and must not be presented as a 128K measurement.

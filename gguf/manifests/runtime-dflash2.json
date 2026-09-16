@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/unslothai/llama.cpp.git",
+  "branch": "glm5next/upstream",
+  "commit": "d94f44e79aa219d8057e8de21f95360a187ebf41",
+  "selection_reason": "The pinned ggml-org upstream candidate did not contain the target's glm5-next tensor mappings. This Unsloth branch is rebased on the DFlash2-capable upstream and loaded both the immutable target and drafter after the architecture-name patch.",
+  "patch": "patches/dflash2-glm5next-architecture.patch",
+  "patch_sha256": "e59b4928ae10ee11fc53aa73395f241894f2ff0c627fba7383449749ce47fc67",
+  "build": {
+    "generator": "cmake",
+    "type": "Release",
+    "cuda": true,
+    "cuda_architectures_requested": "121",
+    "cuda_architectures_effective": "121a",
+    "cmake_confirmation": "Using CMAKE_CUDA_ARCHITECTURES=121a CMAKE_CUDA_ARCHITECTURES_NATIVE=121a-real",
+    "targets": ["llama-server", "llama-quantize", "llama-bench"],
+    "llama_server": {
+      "bytes": 72456,
+      "sha256": "cbf736de8dfd03f4f79a329b428ef44199a5d5550c5950e6f8759da6ca45c01a"
+    }
+  },
+  "activation_log_requirements": [
+    "adding speculative implementation 'draft-dflash'",
+    "DFlash2 conv kernel = 2, group = 16, selector rank = 256, top-k = 16"
+  ]
+}

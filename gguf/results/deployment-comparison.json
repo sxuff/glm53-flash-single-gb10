@@ -1,0 +1,69 @@
+{
+  "comparison_type": "deployment-to-deployment",
+  "delta": {
+    "aggregate_whole_request_increase_percent": 81.2801984430332,
+    "aggregate_whole_request_ratio": 1.812801984430332,
+    "per_workload_server_decode_increase_percent": {
+      "code": 59.63067331724692,
+      "math": 113.98785004269212,
+      "prose": 66.58261068780722,
+      "structured": 97.05566763283437
+    },
+    "weighted_server_decode_increase_percent": 81.36501076658837,
+    "weighted_server_decode_ratio": 1.8136501076658837
+  },
+  "evidence_label": "tested",
+  "metric_definitions": {
+    "aggregate_whole_request_tokens_per_second": "sum of measured completion tokens divided by summed client wall seconds",
+    "weighted_server_decode_tokens_per_second": "sum of measured completion tokens divided by summed server decode seconds"
+  },
+  "new": {
+    "aggregate_whole_request_tokens_per_second": 28.371904066514873,
+    "context_tokens": 8192,
+    "draft_acceptance_rate": 0.6391494684177611,
+    "label": "New DFlash2 deployment",
+    "per_workload_server_decode_tokens_per_second": {
+      "code": 27.07306021523558,
+      "math": 32.065837996475004,
+      "prose": 22.04940913385997,
+      "structured": 39.92075480042074
+    },
+    "profile": "UD-IQ2_XXS with DFlash2 Q4_K_M, n=3, p_min=0.30",
+    "source_receipt": "dflash2-q4km-n3-p030.json",
+    "source_sha256": "830f6ed3bb263f716eb8289de558f6b5237134ecfd4d7f25bc558918908644b2",
+    "weighted_server_decode_tokens_per_second": 28.94797399552837
+  },
+  "previous": {
+    "aggregate_whole_request_tokens_per_second": 15.650856690467858,
+    "context_tokens": 65536,
+    "label": "Previous deployment",
+    "per_workload_server_decode_tokens_per_second": {
+      "code": 16.959810826225798,
+      "math": 14.984887221436935,
+      "prose": 13.236321031840959,
+      "structured": 20.25861792252706
+    },
+    "profile": "EXL3 K2 with native MTP k=2",
+    "source_receipt": "../../results/mtp-k2.json",
+    "source_sha256": "cff354a5ff8115c0466df8f615217472173cc647d50d04d4808cc3535e743933",
+    "weighted_server_decode_tokens_per_second": 15.961167963529409
+  },
+  "protocol": {
+    "completion_tokens_per_request": 400,
+    "hardware": "one NVIDIA GB10",
+    "measured_requests_per_workload": 1,
+    "seed": 42,
+    "temperature": 0.0,
+    "warmups_per_workload": 1,
+    "workloads": 4
+  },
+  "result_card": {
+    "height": 1168,
+    "path": "../../assets/glm53-dflash2-result-card.png",
+    "sha256": "45f0ffe6c6cddb7aff5789e9f2fbdd08c3187458cef0ad1bbb621cd2913eefe9",
+    "width": 1472
+  },
+  "schema_version": 1,
+  "scope_note": "The deployments use different artifacts, runtimes, and context allocations. This is not an isolated component A/B test.",
+  "status": "passed"
+}

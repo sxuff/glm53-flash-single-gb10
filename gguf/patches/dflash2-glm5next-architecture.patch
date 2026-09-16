@@ -1,0 +1,11 @@
+diff --git a/src/llama-arch.cpp b/src/llama-arch.cpp
+--- a/src/llama-arch.cpp
++++ b/src/llama-arch.cpp
+@@ -84,6 +84,6 @@ static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {
+     { LLM_ARCH_GLM4_MOE,         "glm4moe"          },
+     { LLM_ARCH_GLM_DSA,          "glm-dsa"          },
+-    { LLM_ARCH_GLM5NEXT,         "glm5next"         },
++    { LLM_ARCH_GLM5NEXT,         "glm5-next"        },
+     { LLM_ARCH_BITNET,           "bitnet"           },
+     { LLM_ARCH_T5,               "t5"               },
+     { LLM_ARCH_T5ENCODER,        "t5encoder"        },

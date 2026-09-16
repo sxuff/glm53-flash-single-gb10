@@ -1,0 +1,97 @@
+{
+  "aggregate": {
+    "accepted_draft_tokens": 2044,
+    "aggregate_whole_request_tokens_per_second": 28.371904066514873,
+    "draft_acceptance_rate": 0.6391494684177611,
+    "draft_acceptance_scope": "warm-up plus measured requests",
+    "mean_server_decode_tokens_per_second": 30.277265536497822,
+    "measured_completion_tokens": 1600,
+    "proposed_draft_tokens": 3198,
+    "summed_server_decode_seconds": 55.271571,
+    "summed_wall_seconds": 56.39381820300014,
+    "weighted_server_decode_tokens_per_second": 28.94797399552837
+  },
+  "deployment": {
+    "draft_n_max": 3,
+    "draft_n_min": 0,
+    "draft_p_min": 0.3,
+    "drafter": "DFlash2 Q4_K_M",
+    "drafter_revision": "caf6ef0cedd0dc4ac1183c4110266c2e4f58e17c",
+    "runtime_commit": "d94f44e79aa219d8057e8de21f95360a187ebf41",
+    "target_revision": "2975ab414d30340466d8c51533c6e91f0cca64c1",
+    "target_variant": "UD-IQ2_XXS"
+  },
+  "design": {
+    "completion_tokens_per_request": 400,
+    "context_tokens": 8192,
+    "hardware": "one NVIDIA GB10",
+    "measured_requests_per_workload": 1,
+    "parallel_slots": 1,
+    "seed": 42,
+    "temperature": 0.0,
+    "thinking": false,
+    "top_p": 1.0,
+    "warmups_per_workload": 1,
+    "workloads": [
+      "prose",
+      "structured",
+      "code",
+      "math"
+    ]
+  },
+  "evidence_label": "tested",
+  "measurement_date": "2026-09-15",
+  "schema_version": 1,
+  "scope_note": "One fixed-order operating sweep. This receipt does not claim performance at a 128K allocation.",
+  "status": "passed",
+  "workloads": {
+    "code": {
+      "accepted_draft_tokens": 247,
+      "completion_tokens": 400,
+      "finish_reason": "length",
+      "output_sha256": "a44eafb84eb682c45be13fa703cbeb0303ee2c9fab3131e71d15c134b86d1ae3",
+      "proposed_draft_tokens": 436,
+      "request_sha256": "76456d744dc75f99da7352cb9dfeadb08a553620f42ce5be2c057e9027f5fbf6",
+      "server_decode_seconds": 14.737898,
+      "server_decode_tokens_per_second": 27.07306021523558,
+      "wall_seconds": 15.026454340999862,
+      "whole_request_tokens_per_second": 26.619719524159148
+    },
+    "math": {
+      "accepted_draft_tokens": 271,
+      "completion_tokens": 400,
+      "finish_reason": "length",
+      "output_sha256": "cfc20affed71e453eddd45149954fdd1cae06e6b869dc514c74468060cbea0d6",
+      "proposed_draft_tokens": 353,
+      "request_sha256": "f2f00118fc975323937d0cab7a413db2f82ad3d9b8240b5101734ce52a059ff4",
+      "server_decode_seconds": 12.443149,
+      "server_decode_tokens_per_second": 32.065837996475004,
+      "wall_seconds": 12.713897337000162,
+      "whole_request_tokens_per_second": 31.46163520102639
+    },
+    "prose": {
+      "accepted_draft_tokens": 207,
+      "completion_tokens": 400,
+      "finish_reason": "length",
+      "output_sha256": "b49db9e3509c28a8aa4a12b270661eacafab88169c0fca2e468ae61946387ecf",
+      "proposed_draft_tokens": 505,
+      "request_sha256": "6acd0dea890add948e1ea83e86e0b7a05b3f5853dea4cf39c1d76de9d2437934",
+      "server_decode_seconds": 18.095723000000003,
+      "server_decode_tokens_per_second": 22.04940913385997,
+      "wall_seconds": 18.36333919100025,
+      "whole_request_tokens_per_second": 21.782530717291184
+    },
+    "structured": {
+      "accepted_draft_tokens": 297,
+      "completion_tokens": 400,
+      "finish_reason": "length",
+      "output_sha256": "8fe1f7304f6ad9b58ea4118639527b86165a5641dc28c1719a4b2f790a7de72f",
+      "proposed_draft_tokens": 305,
+      "request_sha256": "9f20b79ec3db16c56149097c3eade70d80766213fb5646ec0f959ee449facf87",
+      "server_decode_seconds": 9.994800999999999,
+      "server_decode_tokens_per_second": 39.92075480042074,
+      "wall_seconds": 10.290127333999862,
+      "whole_request_tokens_per_second": 38.87221090825088
+    }
+  }
+}

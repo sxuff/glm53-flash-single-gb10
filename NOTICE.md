@@ -13,6 +13,17 @@ The GGUF lane pins and builds:
 
 The repository carries a two-line compatibility patch that maps the rewritten artifact's canonical text architecture and projector type to the names expected by the pinned runtime. The patch is stored in `gguf/patches/gguf-canonical-naming.patch`.
 
+### Optional DFlash2 drafter
+
+The measured external-drafter profile additionally pins:
+
+- Drafter source: `incoai/GLM-5.3-Flash-DFlash2` at `bf582e4eacc1810f76656d1811693ff6c6737d2a`
+- GGUF conversion: `vcruz305/GLM-5.3-Flash-DFlash2-GGUF` at `caf6ef0cedd0dc4ac1183c4110266c2e4f58e17c`
+- Exercised local quantizer: `vcruz305/llama.cpp` at `4a06ec6187b72313754f5f0c7a394ca5522ad8a2`
+- DFlash-capable serving runtime: `unslothai/llama.cpp` at `d94f44e79aa219d8057e8de21f95360a187ebf41`
+
+The DFlash2 drafter weights are licensed **CC BY-NC-ND 4.0**. They are not included in this repository. The downloader requires the operator to set `ACCEPT_DFLASH2_NC_LICENSE=1` explicitly before obtaining them. The target GLM-5.3 Flash artifact remains under its existing MIT terms.
+
 ## EXL3 lane
 
 The EXL3 lane pins and invokes the MIT-licensed upstream recipe:

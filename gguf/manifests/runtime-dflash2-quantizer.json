@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "purpose": "derive checksum-pinned DFlash2 Q8_0 and Q4_K_M drafts",
+  "repository": "https://github.com/vcruz305/llama.cpp.git",
+  "commit": "4a06ec6187b72313754f5f0c7a394ca5522ad8a2",
+  "parent_dflash2_commit": "6f5ac9a84d4c574a2b9bd7a1034bef103a399eee",
+  "aarch64_fix": {
+    "path": "common/speculative.cpp",
+    "change": "#include <cmath>",
+    "included_in_commit": true
+  },
+  "build": {
+    "generator": "cmake",
+    "type": "Release",
+    "cuda": true,
+    "cuda_architectures_requested": "121",
+    "cuda_architectures_effective": "121a",
+    "targets": ["llama-quantize"],
+    "llama_quantize": {
+      "bytes": 72488,
+      "sha256": "2aeb5b62975d75968fc77652fd887e0784311a23fb01e77bd902ba764f2e7680"
+    }
+  }
+}

@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 import urllib.request
+import re
 
 GIB = 1024**3
 PROMPTS = {
@@ -54,12 +55,14 @@ def digest(payload: object) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect one GLM-5.3 Flash speed arm")
-    parser.add_argument("--arm", choices=("no-mtp", "mtp-n2"), required=True)
+    parser.add_argument("--arm", required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--unit", help="optional systemd user unit for service-swap telemetry and emergency stop")
     parser.add_argument("--warmups", type=int, default=1)
     args = parser.parse_args()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", args.arm):
+        parser.error("--arm must be a lowercase filesystem-safe label")
 
     base = args.base_url.rstrip("/")
     props = request(base + "/props")
@@ -70,29 +73,38 @@ def main() -> int:
         "maximum_service_swap_bytes": 0 if args.unit else None,
         "samples": 0,
         "breach": None,
+        "monitor_error": None,
     }
     stop = threading.Event()
 
     def monitor() -> None:
-        while not stop.wait(0.5):
-            available = mem_available()
-            host_growth = max(0, swap_used() - baseline_swap)
-            owned_swap = service_swap(args.unit)
-            telemetry["minimum_mem_available_bytes"] = min(telemetry["minimum_mem_available_bytes"], available)
-            telemetry["maximum_host_swap_growth_bytes"] = max(telemetry["maximum_host_swap_growth_bytes"], host_growth)
-            if owned_swap is not None:
-                telemetry["maximum_service_swap_bytes"] = max(telemetry["maximum_service_swap_bytes"], owned_swap)
-            telemetry["samples"] += 1
-            if available < 6 * GIB:
-                telemetry["breach"] = f"MemAvailable below 6 GiB: {available}"
-            elif host_growth > 512 * 1024**2:
-                telemetry["breach"] = f"host swap growth above 512 MiB: {host_growth}"
-            elif owned_swap:
-                telemetry["breach"] = f"service swap nonzero: {owned_swap}"
-            if telemetry["breach"]:
+        try:
+            while not stop.wait(0.5):
+                available = mem_available()
+                host_growth = max(0, swap_used() - baseline_swap)
+                owned_swap = service_swap(args.unit)
+                telemetry["minimum_mem_available_bytes"] = min(telemetry["minimum_mem_available_bytes"], available)
+                telemetry["maximum_host_swap_growth_bytes"] = max(telemetry["maximum_host_swap_growth_bytes"], host_growth)
+                if owned_swap is not None:
+                    telemetry["maximum_service_swap_bytes"] = max(telemetry["maximum_service_swap_bytes"], owned_swap)
+                telemetry["samples"] += 1
+                if available < 6 * GIB:
+                    telemetry["breach"] = f"MemAvailable below 6 GiB: {available}"
+                elif host_growth > 512 * 1024**2:
+                    telemetry["breach"] = f"host swap growth above 512 MiB: {host_growth}"
+                elif owned_swap:
+                    telemetry["breach"] = f"service swap nonzero: {owned_swap}"
+                if not telemetry["breach"]:
+                    continue
                 if args.unit:
                     subprocess.run(["systemctl", "--user", "stop", args.unit], check=False)
                 stop.set()
+        except Exception as exc:
+            telemetry["monitor_error"] = f"{type(exc).__name__}: {exc}"
+            telemetry["breach"] = "safety telemetry monitor failed"
+            if args.unit:
+                subprocess.run(["systemctl", "--user", "stop", args.unit], check=False)
+            stop.set()
 
     thread = threading.Thread(target=monitor, daemon=True)
     thread.start()
@@ -119,15 +131,30 @@ def main() -> int:
                     raise RuntimeError("server returned no completion choice")
                 timings = response.get("timings") or {}
                 usage = response.get("usage") or {}
+                choice = response["choices"][0]
+                message = choice.get("message") or {}
+                content = message.get("content")
+                reasoning = message.get("reasoning_content")
+                if not isinstance(content, str):
+                    raise RuntimeError("server returned no text content")
+                if reasoning is not None and not isinstance(reasoning, str):
+                    raise RuntimeError("server returned non-text reasoning content")
+                if args.arm != "no-mtp" and ("draft_n" not in timings or "draft_n_accepted" not in timings):
+                    raise RuntimeError("speculative arm did not return draft acceptance timings")
+                output_channels = {"reasoning_content": reasoning, "content": content}
                 record = {
                     "arm": args.arm,
                     "case": case,
                     "warmup": ordinal < args.warmups,
                     "request_sha256": digest(payload),
                     "response_sha256": digest(response),
+                    "output_text_sha256": digest(output_channels),
+                    "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
+                    "reasoning_content_sha256": hashlib.sha256(reasoning.encode()).hexdigest() if reasoning is not None else None,
                     "wall_seconds": elapsed,
-                    "finish_reason": response["choices"][0].get("finish_reason"),
+                    "finish_reason": choice.get("finish_reason"),
                     "completion_tokens": usage.get("completion_tokens"),
+                    "whole_request_completion_tokens_per_second": usage.get("completion_tokens", 0) / elapsed,
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "predicted_tokens": timings.get("predicted_n"),
                     "predicted_seconds": (timings.get("predicted_ms") or 0) / 1000,
@@ -136,6 +163,8 @@ def main() -> int:
                     "accepted_draft_tokens": timings.get("draft_n_accepted", 0),
                     "system_fingerprint": response.get("system_fingerprint"),
                 }
+                if record["completion_tokens"] != 400 or record["finish_reason"] != "length":
+                    raise RuntimeError(f"invalid completion denominator: tokens={record['completion_tokens']} finish={record['finish_reason']}")
                 (warmups if record["warmup"] else rows).append(record)
                 if telemetry["breach"]:
                     raise RuntimeError(telemetry["breach"])
@@ -144,11 +173,19 @@ def main() -> int:
     finally:
         stop.set()
         thread.join(timeout=5)
+    if thread.is_alive():
+        telemetry["monitor_error"] = "monitor thread did not terminate"
+        telemetry["breach"] = "safety telemetry monitor failed"
+    if telemetry["samples"] == 0:
+        telemetry["monitor_error"] = telemetry["monitor_error"] or "no safety telemetry samples collected"
+        telemetry["breach"] = "safety telemetry monitor failed"
+    if telemetry["monitor_error"] and not failure:
+        failure = f"RuntimeError: {telemetry['monitor_error']}"
 
     report = {
         "schema_version": 1,
         "arm": args.arm,
-        "status": "passed" if not failure and not telemetry["breach"] and len(rows) == 4 else "failed",
+        "status": "passed" if not failure and not telemetry["breach"] and telemetry["samples"] > 0 and len(rows) == 4 else "failed",
         "failure": failure,
         "runtime": {
             "build_info": props.get("build_info"),

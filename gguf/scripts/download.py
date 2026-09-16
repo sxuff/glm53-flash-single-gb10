@@ -35,8 +35,42 @@ def inspect(path: Path, item: dict) -> dict:
     }
 
 
+def validate_manifest(manifest: dict) -> None:
+    required = ("repository", "revision", "variant", "files")
+    if any(not manifest.get(key) for key in required) or not isinstance(manifest["files"], list):
+        raise ValueError("manifest is missing required identity fields")
+    names: set[str] = set()
+    for item in manifest["files"]:
+        for key in ("source_path", "final_name", "bytes", "sha256"):
+            if key not in item:
+                raise ValueError(f"manifest file is missing {key}")
+        for key in ("source_path", "final_name"):
+            value = Path(item[key])
+            if value.is_absolute() or ".." in value.parts or str(value) in ("", "."):
+                raise ValueError(f"unsafe manifest path: {item[key]}")
+        if item["final_name"] in names:
+            raise ValueError(f"duplicate final filename: {item['final_name']}")
+        names.add(item["final_name"])
+        if not isinstance(item["bytes"], int) or item["bytes"] < 1:
+            raise ValueError(f"invalid byte count for {item['final_name']}")
+        if not isinstance(item["sha256"], str) or len(item["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in item["sha256"]):
+            raise ValueError(f"invalid SHA-256 for {item['final_name']}")
+
+
+def require_license_acceptance(manifest: dict) -> None:
+    license_info = manifest.get("license")
+    if not license_info:
+        return
+    name = license_info.get("acceptance_environment_variable")
+    value = license_info.get("acceptance_value")
+    if not name or not value:
+        raise ValueError("license acceptance manifest is incomplete")
+    if os.environ.get(name) != value:
+        raise PermissionError(license_info.get("notice") or f"set {name}={value} to accept the artifact license")
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download and verify the pinned GLM-5.3 Flash IQ2_XXS artifact")
+    parser = argparse.ArgumentParser(description="Download and verify a pinned GLM-5.3 Flash GGUF artifact")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--report", type=Path)
@@ -44,6 +78,8 @@ def main() -> int:
     args = parser.parse_args()
 
     manifest = json.loads(args.manifest.read_text())
+    validate_manifest(manifest)
+    require_license_acceptance(manifest)
     destination = args.destination.expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
     report_path = args.report or destination / "verification.json"

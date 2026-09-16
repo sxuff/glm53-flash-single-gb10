@@ -8,6 +8,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parent
 
 
 def sha256(path: Path) -> str:
@@ -18,75 +19,136 @@ def fail(message: str) -> None:
     raise AssertionError(message)
 
 
+def close(actual: float, expected: float, label: str) -> None:
+    if abs(actual - expected) > 1e-12:
+        fail(f"{label} mismatch: {actual} != {expected}")
+
+
+def check_links(path: Path) -> None:
+    pattern = re.compile(r"\[[^]]+\]\((?!https?://|#)([^)]+)\)")
+    for link in pattern.findall(path.read_text()):
+        if not (path.parent / link).resolve().exists():
+            fail(f"broken relative link in {path.relative_to(REPO)}: {link}")
+
+
 def main() -> int:
-    target = json.loads((ROOT / "manifests" / "target.json").read_text())
-    runtime = json.loads((ROOT / "manifests" / "runtime.json").read_text())
-    summary = json.loads((ROOT / "results" / "summary.json").read_text())
+    target = json.loads((ROOT / "manifests/target.json").read_text())
+    dflash = json.loads((ROOT / "manifests/dflash2.json").read_text())
+    derived = json.loads((ROOT / "manifests/dflash2-derived.json").read_text())
+    runtime = json.loads((ROOT / "manifests/runtime-dflash2.json").read_text())
+    quantizer = json.loads((ROOT / "manifests/runtime-dflash2-quantizer.json").read_text())
+    arm = json.loads((ROOT / "results/dflash2-q4km-n3-p030.json").read_text())
+    summary = json.loads((ROOT / "results/deployment-comparison.json").read_text())
+    previous = json.loads((REPO / "results/mtp-k2.json").read_text())
 
-    if sum(item["bytes"] for item in target["files"]) != summary["artifact"]["bytes"]:
-        fail("target byte total disagrees with summary")
-    if len(target["files"]) != summary["artifact"]["files"]:
-        fail("target file count disagrees with summary")
+    if target["revision"] != "2975ab414d30340466d8c51533c6e91f0cca64c1":
+        fail("target revision changed")
+    if dflash["revision"] != "caf6ef0cedd0dc4ac1183c4110266c2e4f58e17c":
+        fail("drafter revision changed")
+    if runtime["commit"] != "d94f44e79aa219d8057e8de21f95360a187ebf41":
+        fail("DFlash runtime revision changed")
     if sha256(ROOT / runtime["patch"]) != runtime["patch_sha256"]:
-        fail("runtime patch hash mismatch")
+        fail("DFlash runtime patch hash mismatch")
+    if derived["runtime"]["commit"] != quantizer["commit"]:
+        fail("quantizer lineage mismatch")
+    draft_rows = {row["quantization"]: row for row in derived["files"]}
+    if set(draft_rows) != {"Q8_0", "Q4_K_M"}:
+        fail("derived draft set changed")
+    if draft_rows["Q4_K_M"]["bytes"] != 697017248:
+        fail("Q4_K_M byte count changed")
 
-    no_mtp = summary["arms"]["no-mtp"]
-    mtp = summary["arms"]["mtp-n2"]
-    ratio = mtp["mean_server_decode_tokens_per_second"] / no_mtp["mean_server_decode_tokens_per_second"]
-    if abs(ratio - summary["comparison"]["mean_server_decode_ratio"]) > 1e-12:
-        fail("mean decode ratio mismatch")
-    wall_ratio = mtp["aggregate_whole_request_tokens_per_second"] / no_mtp["aggregate_whole_request_tokens_per_second"]
-    if abs(wall_ratio - summary["comparison"]["aggregate_whole_request_ratio"]) > 1e-12:
-        fail("whole-request ratio mismatch")
-    acceptance = mtp["acceptance"]
-    if abs(acceptance["accepted_draft_tokens"] / acceptance["proposed_draft_tokens"] - acceptance["rate"]) > 1e-12:
-        fail("acceptance mismatch")
+    measured = list(arm["workloads"].values())
+    tokens = sum(int(row["completion_tokens"]) for row in measured)
+    weighted_decode = tokens / sum(float(row["server_decode_seconds"]) for row in measured)
+    whole_request = tokens / sum(float(row["wall_seconds"]) for row in measured)
+    close(weighted_decode, float(arm["aggregate"]["weighted_server_decode_tokens_per_second"]), "new weighted decode")
+    close(whole_request, float(arm["aggregate"]["aggregate_whole_request_tokens_per_second"]), "new whole-request")
+    accepted = int(arm["aggregate"]["accepted_draft_tokens"])
+    proposed = int(arm["aggregate"]["proposed_draft_tokens"])
+    close(accepted / proposed, float(arm["aggregate"]["draft_acceptance_rate"]), "draft acceptance")
 
-    for arm in (no_mtp, mtp):
-        if arm["minimum_mem_available_bytes"] <= 6 * 1024**3:
-            fail("memory reserve failed")
-        if arm["maximum_host_swap_growth_bytes"] != 0:
-            fail("host swap growth is not zero")
-        if arm["maximum_service_swap_bytes"] != 0:
-            fail("service swap is not zero")
+    old_rows = previous["cases"]
+    old_tokens = sum(int(row["output_tokens"]) for row in old_rows)
+    old_decode = old_tokens / sum(float(row["server_decode_seconds"]) for row in old_rows)
+    old_whole = old_tokens / sum(float(row["wall_seconds"]) for row in old_rows)
+    close(old_decode, float(summary["previous"]["weighted_server_decode_tokens_per_second"]), "previous weighted decode")
+    close(old_whole, float(summary["previous"]["aggregate_whole_request_tokens_per_second"]), "previous whole-request")
+    close(weighted_decode, float(summary["new"]["weighted_server_decode_tokens_per_second"]), "summary new weighted decode")
+    close(whole_request, float(summary["new"]["aggregate_whole_request_tokens_per_second"]), "summary new whole-request")
+    close(weighted_decode / old_decode, float(summary["delta"]["weighted_server_decode_ratio"]), "decode ratio")
+    close(whole_request / old_whole, float(summary["delta"]["aggregate_whole_request_ratio"]), "whole-request ratio")
 
-    docs = "\n".join((ROOT / name).read_text() for name in ("README.md", "REPORT.md", "CARD_VALUES.md"))
-    if "quality" in docs.lower():
-        fail("public narrative contains excluded framing")
+    card = REPO / "assets/glm53-dflash2-result-card.png"
+    if sha256(card) != summary["result_card"]["sha256"]:
+        fail("result-card hash mismatch")
+    if (summary["result_card"]["width"], summary["result_card"]["height"]) != (1472, 1168):
+        fail("result-card dimensions changed")
 
-    private_literals = [
-        "s" + "xuf",
-        "gx10" + "-fe09",
-        "/home/" + "sx" + "uf",
-        "100." + "64.",
-    ]
-    for path in ROOT.rglob("*"):
-        if not path.is_file() or ".git" in path.parts or "__pycache__" in path.parts:
-            continue
-        data = path.read_bytes()
-        for literal in private_literals:
-            if literal.encode() in data:
-                fail(f"private literal found in {path.relative_to(ROOT)}")
+    removed = (
+        "assets/glm53-mtp-result-card.html",
+        "assets/glm53-mtp-result-card.png",
+        "assets/glm53-mtp-result-card.svg",
+        "gguf/CARD_VALUES.md",
+        "gguf/REPORT.md",
+        "gguf/results/summary.json",
+    )
+    for relative in removed:
+        if (REPO / relative).exists():
+            fail(f"obsolete artifact still exists: {relative}")
 
-    markdown = [ROOT / "README.md", ROOT / "REPORT.md", ROOT / "CARD_VALUES.md"]
-    link_pattern = re.compile(r"\[[^]]+\]\((?!https?://|#)([^)]+)\)")
-    for path in markdown:
-        for link in link_pattern.findall(path.read_text()):
-            if not (path.parent / link).resolve().exists():
-                fail(f"broken relative link in {path.name}: {link}")
+    docs = [REPO / "README.md", ROOT / "README.md", ROOT / "RESULT.md", ROOT / "RESULT_CARD.md"]
+    for path in docs:
+        check_links(path)
+    narrative = "\n".join(path.read_text() for path in docs)
+    for value in ("15.96", "28.95", "1.81x", "81.37%", "28.37", "63.91%", "not an isolated component A/B"):
+        if value not in narrative:
+            fail(f"public result value missing: {value}")
 
-    serve = (ROOT / "scripts" / "serve.sh").read_text()
-    for token in ('MODE="${MODE:-mtp}"', "--spec-type draft-mtp", "--spec-draft-n-max 2", "--spec-draft-n-min 0", "--host \"$HOST\""):
+    serve = (ROOT / "scripts/serve.sh").read_text()
+    for token in (
+        'MODE="${MODE:-dflash2}"',
+        'DFLASH_N_MAX="${DFLASH_N_MAX:-3}"',
+        'DFLASH_P_MIN="${DFLASH_P_MIN:-0.30}"',
+        "--spec-type draft-dflash",
+        "--spec-draft-n-min 0",
+        "--cache-type-k q8_0",
+        "--cache-type-v q8_0",
+        "--no-kv-unified",
+        "--fit off",
+        "verify_launch_artifacts.py",
+    ):
         if token not in serve:
             fail(f"serve contract missing: {token}")
 
+    private_literals = (
+        "/home/" + "sxuf",
+        "gx10" + "-fe09",
+        "cache/" + "images",
+        "proxy" + ".key",
+        "api" + "_key=",
+        "0x" + "Sero",
+        "Victor " + "Cruz",
+    )
+    roots = [REPO / "README.md", REPO / "NOTICE.md", REPO / "assets", ROOT]
+    for item in roots:
+        paths = [item] if item.is_file() else list(item.rglob("*"))
+        for path in paths:
+            if not path.is_file() or "__pycache__" in path.parts or "runtime" in path.parts or "local" in path.parts:
+                continue
+            data = path.read_bytes()
+            for literal in private_literals:
+                if literal.encode() in data:
+                    fail(f"private literal found in {path.relative_to(REPO)}")
+
     print(json.dumps({
         "status": "passed",
-        "target_files": len(target["files"]),
-        "target_bytes": sum(item["bytes"] for item in target["files"]),
-        "runtime_commit": runtime["commit"],
-        "mean_decode_ratio": ratio,
-        "acceptance_rate": acceptance["rate"],
+        "weighted_decode_previous": old_decode,
+        "weighted_decode_new": weighted_decode,
+        "weighted_decode_ratio": weighted_decode / old_decode,
+        "whole_request_previous": old_whole,
+        "whole_request_new": whole_request,
+        "draft_acceptance": accepted / proposed,
+        "result_card_sha256": sha256(card),
     }, indent=2, sort_keys=True))
     return 0
 
