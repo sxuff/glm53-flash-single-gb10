@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 
@@ -21,7 +22,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build the public GLM-5.3 deployment-comparison receipt")
     parser.add_argument("--previous", type=Path, default=ROOT.parent / "results" / "mtp-k2.json")
     parser.add_argument("--new", type=Path, default=ROOT / "results" / "dflash2-q4km-n3-p030.json")
-    parser.add_argument("--card", type=Path, default=ROOT.parent / "assets" / "glm53-dflash2-result-card.png")
+    parser.add_argument(
+        "--card",
+        type=Path,
+        default=None,
+        help="Optional result-card PNG. Omit to build the receipt without a result_card block.",
+    )
     parser.add_argument("--output", type=Path, default=ROOT / "results" / "deployment-comparison.json")
     args = parser.parse_args()
 
@@ -45,7 +51,9 @@ def main() -> int:
     if set(old_by_case) != set(workloads):
         raise ValueError("workload sets differ")
 
-    width, height = png_size(args.card)
+    width, height = (None, None)
+    if args.card is not None:
+        width, height = png_size(args.card)
     result = {
         "schema_version": 1,
         "status": "passed",
@@ -106,14 +114,15 @@ def main() -> int:
                 for case in workloads
             },
         },
-        "result_card": {
-            "path": "../../assets/glm53-dflash2-result-card.png",
+        "scope_note": "The deployments use different artifacts, runtimes, and context allocations. This is not an isolated component A/B test.",
+    }
+    if args.card is not None:
+        result["result_card"] = {
+            "path": os.path.relpath(args.card, args.output.parent),
             "sha256": hashlib.sha256(args.card.read_bytes()).hexdigest(),
             "width": width,
             "height": height,
-        },
-        "scope_note": "The deployments use different artifacts, runtimes, and context allocations. This is not an isolated component A/B test.",
-    }
+        }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n")
     print(json.dumps(result["delta"], indent=2, sort_keys=True))

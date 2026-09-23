@@ -78,16 +78,16 @@ def main() -> int:
     close(weighted_decode / old_decode, float(summary["delta"]["weighted_server_decode_ratio"]), "decode ratio")
     close(whole_request / old_whole, float(summary["delta"]["aggregate_whole_request_ratio"]), "whole-request ratio")
 
-    card = REPO / "assets/glm53-dflash2-result-card.png"
-    if sha256(card) != summary["result_card"]["sha256"]:
-        fail("result-card hash mismatch")
-    if (summary["result_card"]["width"], summary["result_card"]["height"]) != (1472, 1168):
-        fail("result-card dimensions changed")
+    if "result_card" in summary:
+        card = REPO / summary["result_card"]["path"]
+        if sha256(card) != summary["result_card"]["sha256"]:
+            fail("result-card hash mismatch")
 
     removed = (
         "assets/glm53-mtp-result-card.html",
         "assets/glm53-mtp-result-card.png",
         "assets/glm53-mtp-result-card.svg",
+        "assets/glm53-dflash2-result-card.png",
         "gguf/CARD_VALUES.md",
         "gguf/REPORT.md",
         "gguf/results/summary.json",
@@ -100,7 +100,9 @@ def main() -> int:
     for path in docs:
         check_links(path)
     narrative = "\n".join(path.read_text() for path in docs)
-    for value in ("15.96", "28.95", "1.81x", "81.37%", "28.37", "63.91%", "not an isolated component A/B"):
+    for value in ("15.96", "28.95", "1.8136", "81.3650107666", "15.65", "28.37", "113.99%",
+                  "not an isolated component A/B",
+                  "29.97", "11.63", "2.58x", "+157.7%", "26.1 GB", "96.97%", "15 / 15"):
         if value not in narrative:
             fail(f"public result value missing: {value}")
 
@@ -148,7 +150,7 @@ def main() -> int:
         "whole_request_previous": old_whole,
         "whole_request_new": whole_request,
         "draft_acceptance": accepted / proposed,
-        "result_card_sha256": sha256(card),
+        "result_card_sha256": summary.get("result_card", {}).get("sha256"),
     }, indent=2, sort_keys=True))
     return 0
 

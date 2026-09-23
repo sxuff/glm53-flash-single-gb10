@@ -163,7 +163,6 @@ Regenerate the public comparison receipt:
 python3 scripts/analyze.py \
   --previous ../results/mtp-k2.json \
   --new results/dflash2-q4km-n3-p030.json \
-  --card ../assets/glm53-dflash2-result-card.png \
   --output results/deployment-comparison.json
 ```
 

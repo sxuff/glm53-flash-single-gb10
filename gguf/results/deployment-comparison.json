@@ -57,12 +57,6 @@
     "warmups_per_workload": 1,
     "workloads": 4
   },
-  "result_card": {
-    "height": 1168,
-    "path": "../../assets/glm53-dflash2-result-card.png",
-    "sha256": "d57db69325869285be3addf2fdc2c3d17ac8976e559eaf3b936449145a0357a3",
-    "width": 1472
-  },
   "schema_version": 1,
   "scope_note": "The deployments use different artifacts, runtimes, and context allocations. This is not an isolated component A/B test.",
   "status": "passed"

@@ -98,7 +98,6 @@ class Contracts(unittest.TestCase):
                 os.fspath(ROOT / "scripts/analyze.py"),
                 "--previous", os.fspath(REPO / "results/mtp-k2.json"),
                 "--new", os.fspath(ROOT / "results/dflash2-q4km-n3-p030.json"),
-                "--card", os.fspath(REPO / "assets/glm53-dflash2-result-card.png"),
                 "--output", os.fspath(output),
             ], check=True, stdout=subprocess.DEVNULL)
             regenerated = json.loads(output.read_text())
@@ -109,6 +108,7 @@ class Contracts(unittest.TestCase):
             "assets/glm53-mtp-result-card.html",
             "assets/glm53-mtp-result-card.png",
             "assets/glm53-mtp-result-card.svg",
+            "assets/glm53-dflash2-result-card.png",
             "gguf/CARD_VALUES.md",
             "gguf/REPORT.md",
             "gguf/results/summary.json",

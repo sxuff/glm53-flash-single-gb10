@@ -5,7 +5,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_REVISION = "ca0bcdae265f7df1e346c57a2b53b8b8f632ee0b"
 UPSTREAM_COMMIT = "0b8dd0d6c7b186076f2e61d1b99a6289f8006c3c"
-VLLM_COMMIT = "878631b6079d2cf9fb80830ef9cb41b43aded098"
+CHECKPOINT_REVISION = "51058cd551c7e570d87bd32a4adee720edce2349"
+TABBYAPI_COMMIT = "f07131cd8fe34e449fe87cdd3a066b52b96d3cac"
+ENGINE_VERSION = "1.4.9"
+IMAGE_SHA = "sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029"
 TARGET_REVISION = "2975ab414d30340466d8c51533c6e91f0cca64c1"
 DFLASH_RUNTIME = "d94f44e79aa219d8057e8de21f95360a187ebf41"
 
@@ -45,10 +48,27 @@ assert comparison["comparison_type"] == "deployment-to-deployment"
 
 readme = (ROOT / "README.md").read_text()
 for value in (
-    "15.96", "28.95", "1.81x", "+81.37%", "15.65", "28.37", "63.91%",
-    "Deployment-to-deployment", TARGET_REVISION, DFLASH_RUNTIME, MODEL_REVISION, VLLM_COMMIT,
+    "29.97", "11.63", "2.58x", "+157.7%", "26.1 GB", "78.0%", "96.97%", "15 / 15",
+    CHECKPOINT_REVISION, TABBYAPI_COMMIT, ENGINE_VERSION, IMAGE_SHA,
 ):
     assert value in readme, value
+
+# Archived lanes document their own pins and figures in their own trees. The current
+# README describes the deployment that replaced them.
+archived = "\n".join(
+    (ROOT / relative).read_text()
+    for relative in (
+        "gguf/README.md",
+        "gguf/RESULT.md",
+        "results/mtp-k2.json",
+        "results/artifact-verification.json",
+    )
+)
+for value in (
+    "15.96", "28.95", "1.8136", "81.3650107666", "15.65", "28.37", "113.99%",
+    TARGET_REVISION, DFLASH_RUNTIME, MODEL_REVISION,
+):
+    assert value in archived, value
 
 launcher = (ROOT / "scripts/run_server.sh").read_text()
 for value in ("127.0.0.1", "MAX_MODEL_LEN", "65536", "SPEC_METHOD", "MTP_TOKENS", "GPU_MEM_UTIL", "0.87", "EXL3_FUSED_MOE"):
@@ -62,6 +82,7 @@ for relative in (
     "assets/glm53-mtp-result-card.html",
     "assets/glm53-mtp-result-card.png",
     "assets/glm53-mtp-result-card.svg",
+    "assets/glm53-dflash2-result-card.png",
     "gguf/CARD_VALUES.md",
     "gguf/REPORT.md",
     "gguf/results/summary.json",

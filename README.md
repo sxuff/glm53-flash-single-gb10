@@ -96,14 +96,12 @@ Under [`exllamav3/results/`](exllamav3/results/):
 
 | Receipt | Backs |
 |---|---|
-| `glm53-exllama-matched-mtp1-16k-20260923.json` | New-lane decode at 16K, MTP n=1, four workloads, warm-up plus three measured runs |
+| `glm53-exllama-matched-mtp-1-16k-20260923.json` | New-lane decode at 16K, MTP n=1, four workloads, warm-up plus three measured runs |
 | `glm53-exllama-matched-nospec-16k-20260923.json` | Same-protocol no-speculation arm for the MTP delta |
 | `glm53-exllama-matched-mtp2-16k-20260923.json` | MTP n=2 retest; it measured slower, which is why n=1 ships |
 | `glm53-quality-cross-runtime-top1-kl-20260923.json` | Top-1 agreement and KL over 4,096 teacher-forced positions |
 | `glm53-promotion-cgroup-swap-soak-20260923.json` | 30-minute loaded soak with per-service cgroup swap counters |
 | `glm53-phase0-2026-09-22.md` | Previous-lane decode baseline and its four-workload protocol |
-
-The result card renders the MTP-1 receipt as `glm53-exllama-matched-mtp-1-16k-20260923.json`; the committed filename omits that hyphen.
 
 ## Superseded lanes
 
