@@ -1,0 +1,36 @@
+# GLM-5.3 Flash EXL3 2.05 bpw primary profile: 262,144-token context with vision.
+# Reasoning effort defaults to High through template_vars_default; clients may pass a
+# flat reasoning_effort field (low | high | max) to override per request.
+network:
+  host: 0.0.0.0
+  port: 5000
+  disable_auth: true
+  allowed_origins: []
+  disable_fetch_requests: true
+  api_servers: [OAI]
+logging:
+  log_prompt: false
+  log_requests: false
+  log_chat_completion_requests: false
+  log_live_status: false
+model:
+  model_dir: /models
+  model_name: glm53
+  backend: exllamav3
+  max_seq_len: 262144
+  cache_size: 262144
+  cache_mode: FP16
+  chunk_size: 256
+  max_batch_size: 1
+  vision: true
+  reasoning: true
+  reasoning_start_token: "<think>"
+  reasoning_end_token: "</think>"
+  tool_format: glm4_5
+  template_vars_default: {reasoning_effort: high}
+draft_model:
+  draft_mode: mtp
+  draft_num_tokens: 1
+memory:
+  sysmem_recurrent_cache: 1024
+  sysmem_multimodal_cache: 128

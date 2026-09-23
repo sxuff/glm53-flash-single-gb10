@@ -1,0 +1,25 @@
+[Unit]
+Description=GLM-5.3 Flash EXL3 2.05bpw primary via TabbyAPI (262K + vision, MTP n=1)
+After=network-online.target docker.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=MODEL_DIR=%h/models/glm53-flash-exl3-2.05bpw
+Environment=REPORT_DIR=%h/.hermes/reports
+ExecStartPre=-/usr/bin/docker rm -f glm53-tabbyapi-primary
+ExecStart=/bin/bash %h/exllamav3/scripts/start-tabbyapi.sh
+ExecStop=-/usr/bin/docker stop -t 30 glm53-tabbyapi-primary
+ExecStopPost=-/usr/bin/docker rm -f glm53-tabbyapi-primary
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=0
+TimeoutStopSec=60
+KillMode=control-group
+LimitNOFILE=65535
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,86 @@
+# exllamav3 + MTP-1 serving recipe
+
+The current deployment lane: GLM-5.3 Flash EXL3 2.05 bpw served by TabbyAPI on exllamav3 1.4.9 with MTP n=1, at 262,144 tokens of context with vision enabled.
+
+## Why this lane
+
+The same checkpoint under SGLang with the EXL3 adapter measured 11.63 tok/s mean decode on a four-workload protocol. The exllamav3 lane measures 29.97 tok/s on the same protocol. The difference is the runtime path, not the checkpoint: SGLang held 9.04 GB of fused linears as a BF16 fallback and ran FP8 KV with no speculation, while exllamav3 uses native EXL3 kernels, an FP16 cache, and a one-token MTP drafter.
+
+## Pins
+
+| Component | Value |
+|---|---|
+| Checkpoint | `turboderp/GLM-5.3-Flash-exl3` @ `51058cd551c7e570d87bd32a4adee720edce2349`, 2.05 bpw |
+| TabbyAPI | `f07131cd8fe34e449fe87cdd3a066b52b96d3cac` |
+| exllamav3 | `1.4.9` (mandatory; the launcher refuses any other version) |
+| Image | `sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029` |
+| Config | `config/glm53-tabbyapi-vision-262k.yml` |
+
+The image bundles the source revision listed above plus a local ARM64 compatibility patch. The patch exists because the vendored KDA Triton kernel called `triton.next_power_of_2()` inside the JIT kernel; the patch moves that host-side calculation into a constexpr launch argument. The immutable image ID is what pins both.
+
+## Serve
+
+```bash
+MODEL_DIR="$HOME/models/glm53-flash-exl3-2.05bpw" ./scripts/start-tabbyapi.sh primary
+```
+
+What the launcher does, in order:
+
+1. Confirms the image ID matches the pin, and that the engine inside it reports exllamav3 1.4.9.
+2. Refuses to start if another GPU runtime is holding the device.
+3. Runs `pagecache-hint.py`, which issues `POSIX_FADV_DONTNEED` against exactly the twelve EXL3 shards and checks the resulting CUDA headroom.
+4. Runs `prelaunch-gate.py`, which requires three consecutive readings with at least 100 GiB CUDA-free, at least 20 GiB `MemAvailable`, and no host swap growth.
+5. Starts the container with `--memory-swap` equal to `--memory`, which makes container swap impossible rather than merely unlikely.
+
+The endpoint is published on `127.0.0.1:8002`. Set `REPORT_DIR` (default `$HOME/.hermes/reports`) to move the JSON receipts the gate scripts write.
+
+## Preflight, to reproduce the numbers
+
+The 262K + vision profile needs headroom before it loads. With a cold page cache the hint step is what creates it: on the reference machine the hint moved CUDA-free from 64.43 GiB to 112.05 GiB. Re-running it immediately afterwards is a no-op, which is the expected behaviour once the pages are gone.
+
+Both scripts print a single line and exit non-zero on failure, so they are safe to use as launch guards:
+
+```
+targeted_cache_hint pass cuda_free_GiB_before 64.43 after 112.05 host_free_GiB_before 64.43 after 112.05 swap_delta -20480
+GATE 0 cuda_free_GiB 113.07 available_GiB 114.46 swap_delta 0
+RESULT pass None
+```
+
+## Reasoning effort
+
+`model.template_vars_default: {reasoning_effort: high}` sets the chat template default to High. It is the lowest-precedence source in TabbyAPI's merge order:
+
+```
+template_vars_default  <  request reasoning.effort  <  request reasoning_effort  <  request template_vars  <  template_vars_force
+```
+
+The upstream template only treats `low` and `high` as explicit values and sends everything else, including an unspecified request, to `max`. Max drove unbounded planning on long prompts: the same prompt returned no answer in three of three runs at a 4,096-token cap and again at 12,288 tokens. Defaulting to High fixed it without removing Max as an option.
+
+Check the render without generating a token:
+
+```bash
+GLM_BASE=http://127.0.0.1:8002 python3 scripts/apply-template-probe.py
+```
+
+## Verification used for promotion
+
+| Check | Result |
+|---|---|
+| Looping prompt, 8K cap, temp 0.6 / top-p 0.95, 3 seeds | 3/3 delivered a final answer with `finish_reason=stop` |
+| 15 deterministic known-answer tasks, thinking on at High | 15/15, all `stop` |
+| Same 15 tasks, thinking disabled | 15/15 |
+| External canary through the authenticated bridge and the Tailscale path | 7/7, including a forced tool call and a vision request |
+| 30-minute loaded soak, per-service cgroup swap | `memory.swap.current` 0 throughout, minimum `MemAvailable` 24.32 GiB |
+
+Scripts for those checks are not vendored here; the receipts in `results/` are.
+
+## Rollback
+
+The lane this replaced is kept as a cold fallback. Both runtimes publish the same loopback port, so switching is a service swap and nothing else:
+
+```bash
+systemctl --user stop glm53-tabbyapi-primary.service
+systemctl --user start <previous-runtime>.service
+```
+
+Trigger a rollback on any canary failure, any host swap growth, or `MemAvailable` below 20 GiB.
