@@ -10,6 +10,7 @@
 #   PORT         host loopback port to publish             (default 8002)
 #   NAME         container name                            (default glm53-tabbyapi-primary)
 #   REPORT_DIR   where the gate scripts write their JSON   (default $HOME/.hermes/reports)
+#   METRICS      1 adds a loopback /metrics route with token counters (default 1; see ../metrics)
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_DIR="${MODEL_DIR:-$HOME/models/glm53-flash-exl3-2.05bpw}"
@@ -17,6 +18,7 @@ PORT="${PORT:-8002}"
 NAME="${NAME:-glm53-tabbyapi-primary}"
 REPORT_DIR="${REPORT_DIR:-$HOME/.hermes/reports}"
 CONFIG="${CONFIG:-$here/../config/glm53-tabbyapi-vision-262k.yml}"
+METRICS="${METRICS:-1}"
 
 image='local/glm53-tabbyapi:f07131c-kda'
 expected_id='sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029'
@@ -36,6 +38,15 @@ busy="$(docker ps --format '{{.Names}}' | grep -v "^${NAME}$" | grep -E 'glm53|l
 MODEL_DIR="$MODEL_DIR" REPORT_DIR="$REPORT_DIR" python3 -u "$here/pagecache-hint.py"
 REPORT_DIR="$REPORT_DIR" python3 -u "$here/prelaunch-gate.py"
 
+# Token counters for /metrics come from a mounted sitecustomize.py, so the pinned image
+# stays byte-identical. Any PYTHONPATH the image already sets is kept after it.
+metrics_args=()
+if [[ "$METRICS" == 1 ]]; then
+  image_pythonpath="$(docker image inspect "$image" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^PYTHONPATH=//p')"
+  metrics_args=(-v "$here/../metrics/sitecustomize.py":/opt/tabby-metrics/sitecustomize.py:ro
+                -e "PYTHONPATH=/opt/tabby-metrics${image_pythonpath:+:$image_pythonpath}")
+fi
+
 cleanup() { docker stop --time 3 "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 
@@ -44,4 +55,5 @@ docker run --rm --name "$NAME" --gpus all --ipc=host --shm-size=8g \
   -p "127.0.0.1:${PORT}:5000" \
   -v "$MODEL_DIR":/models/glm53:ro \
   -v "$CONFIG":/cfg/config.yml:ro \
+  "${metrics_args[@]}" \
   "$image" --config /cfg/config.yml
