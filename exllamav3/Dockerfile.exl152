@@ -1,0 +1,8 @@
+# Build with scripts/build-exl152-image.sh. The base image is the retained,
+# checksum-pinned TabbyAPI f07131c + exllamav3 1.4.9 image, not a public pull.
+ARG BASE_IMAGE=local/glm53-tabbyapi:f07131c-kda
+FROM ${BASE_IMAGE}
+COPY exllamav3-src /opt/exl152-source
+ENV MAX_JOBS=4
+RUN /opt/sglang/bin/python3 -m pip install --no-build-isolation --no-deps --force-reinstall /opt/exl152-source \
+ && /opt/sglang/bin/python3 -c 'import importlib.metadata as m, exllamav3_ext; assert m.version("exllamav3") == "1.5.2"; print("exllamav3", m.version("exllamav3"), exllamav3_ext.__file__)'

@@ -8,6 +8,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 Environment=MODEL_DIR=%h/models/glm53-flash-exl3-2.05bpw
+Environment=ENGINE=1.5.2
 Environment=REPORT_DIR=%h/.hermes/reports
 ExecStartPre=-/usr/bin/docker rm -f glm53-tabbyapi-primary
 ExecStart=/bin/bash %h/exllamav3/scripts/start-tabbyapi.sh

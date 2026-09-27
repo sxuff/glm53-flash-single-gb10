@@ -1,0 +1,64 @@
+{
+  "status": "completed",
+  "evidence_label": "functional_canaries",
+  "raw_receipt_sha256": "f9c19df3157f2158a2184898497cfc863c418363c1d3870261f1cd263e36d7ef",
+  "started_utc": "2026-09-27T13:04:50.728097+00:00",
+  "ended_utc": "2026-09-27T13:06:49.886929+00:00",
+  "candidate_image_id": "sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee",
+  "config": {
+    "context_capacity_tokens": 262144,
+    "vision_configured": true,
+    "mtp_draft_num_tokens": 1
+  },
+  "checks": {
+    "arithmetic_zero_budget": {
+      "passed": true,
+      "content": "54",
+      "finish_reason": "stop",
+      "tool_calls": null,
+      "service_swap_bytes": 0
+    },
+    "arithmetic_default_effort": {
+      "passed": true,
+      "content": "395",
+      "finish_reason": "stop",
+      "tool_calls": null,
+      "service_swap_bytes": 0
+    },
+    "forced_tool": {
+      "passed": true,
+      "content": "",
+      "finish_reason": "tool_calls",
+      "tool_calls": [
+        {
+          "id": "call_cf05149a5731413eb54dd8aa",
+          "function": {
+            "name": "lookup_order",
+            "arguments": "{\"order_id\": \"ORD-731\"}"
+          },
+          "type": "function",
+          "index": 0
+        }
+      ],
+      "service_swap_bytes": 0
+    },
+    "vision_red_square": {
+      "passed": true,
+      "content": "Red",
+      "finish_reason": "stop",
+      "tool_calls": null,
+      "service_swap_bytes": 0
+    }
+  },
+  "safety": {
+    "sample_count": 81,
+    "min_mem_available_bytes": 26830131200,
+    "max_host_swap_growth_bytes": 0,
+    "peak_service_swap_bytes": 0,
+    "breach_count": 0
+  },
+  "limitations": [
+    "One canary per function, not a full quality evaluation.",
+    "Did not re-run the 15-task panel, teacher-forced top-1, 30-minute soak, or full 262K prompt."
+  ]
+}

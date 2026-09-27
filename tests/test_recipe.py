@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import json
+import hashlib
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -7,8 +9,10 @@ MODEL_REVISION = "ca0bcdae265f7df1e346c57a2b53b8b8f632ee0b"
 UPSTREAM_COMMIT = "0b8dd0d6c7b186076f2e61d1b99a6289f8006c3c"
 CHECKPOINT_REVISION = "51058cd551c7e570d87bd32a4adee720edce2349"
 TABBYAPI_COMMIT = "f07131cd8fe34e449fe87cdd3a066b52b96d3cac"
-ENGINE_VERSION = "1.4.9"
-IMAGE_SHA = "sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029"
+ENGINE_VERSION = "1.5.2"
+ENGINE_COMMIT = "12414d0af7b3beeabdda5990f6b554b996fa1416"
+IMAGE_SHA = "sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee"
+ROLLBACK_IMAGE_SHA = "sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029"
 TARGET_REVISION = "2975ab414d30340466d8c51533c6e91f0cca64c1"
 DFLASH_RUNTIME = "d94f44e79aa219d8057e8de21f95360a187ebf41"
 
@@ -49,9 +53,46 @@ assert comparison["comparison_type"] == "deployment-to-deployment"
 readme = (ROOT / "README.md").read_text()
 for value in (
     "29.97", "11.63", "2.58x", "+157.7%", "26.1 GB", "78.0%", "96.97%", "15 / 15",
-    CHECKPOINT_REVISION, TABBYAPI_COMMIT, ENGINE_VERSION, IMAGE_SHA,
+    CHECKPOINT_REVISION, TABBYAPI_COMMIT, ENGINE_VERSION, ENGINE_COMMIT, IMAGE_SHA, ROLLBACK_IMAGE_SHA,
+    "28.13", "29.00", "+3.1%", "326.73", "356.34", "+9.1%", "260.56", "238.99", "−8.3%",
 ):
     assert value in readme, value
+
+exl_root = ROOT / "exllamav3"
+quick = json.loads((exl_root / "results/glm53-exl152-quick-ab-20260927.json").read_text())
+checks = json.loads((exl_root / "results/glm53-exl152-functional-canaries-20260927.json").read_text())
+card = json.loads((exl_root / "results/glm53-exl152-card-asset-20260927.json").read_text())
+asset = ROOT / card["card"]
+assert quick["status"] == checks["status"] == "completed"
+assert quick["evidence_label"] == "quick_screen_not_full_promotion"
+assert quick["runtime"]["exllamav3_1_5_2_commit"] == ENGINE_COMMIT
+assert quick["runtime"]["context_capacity_tokens"] == 262144
+assert quick["protocol"]["long_prefill_input_tokens"] == 84865
+assert quick["protocol"]["decode_measured_requests_per_case"] == 1
+assert set(quick["arms"]) == {"old-149", "new-152-legacy-kda", "new-152-default-kda"}
+assert quick["arms"]["old-149"]["image_id"] == ROLLBACK_IMAGE_SHA
+assert quick["arms"]["new-152-default-kda"]["image_id"] == IMAGE_SHA
+assert all(arm["safety"]["peak_service_swap_bytes"] == arm["safety"]["breach_count"] == 0 for arm in quick["arms"].values())
+assert round(quick["display"]["decode_old_tok_s"], 2) == 28.13
+assert round(quick["display"]["decode_new_tok_s"], 2) == 29.00
+assert round(quick["display"]["decode_percent_change"], 1) == 3.1
+assert round(quick["display"]["prefill_percent_change"], 1) == 9.1
+assert round(quick["display"]["ttft_new_s"], 2) == 238.99
+assert checks["candidate_image_id"] == IMAGE_SHA
+assert set(checks["checks"]) == {"arithmetic_zero_budget", "arithmetic_default_effort", "forced_tool", "vision_red_square"}
+assert all(item["passed"] and item["service_swap_bytes"] == 0 for item in checks["checks"].values())
+assert checks["checks"]["forced_tool"]["tool_calls"][0]["function"]["name"] == "lookup_order"
+assert checks["checks"]["vision_red_square"]["content"].strip() == "Red"
+assert card["sha256"] == hashlib.sha256(asset.read_bytes()).hexdigest()
+assert (card["width_px"], card["height_px"]) == (1472, 1968)
+assert re.search(r"1\.4\.9.*1\.5\.2", readme, re.DOTALL)
+for filename in re.findall(r"`(glm53-[\w-]+\.(?:json|md))`", readme):
+    assert (exl_root / "results" / filename).exists(), filename
+start_script = (exl_root / "scripts/start-tabbyapi.sh").read_text()
+build_script = (exl_root / "scripts/build-exl152-image.sh").read_text()
+for pinned in (IMAGE_SHA, ROLLBACK_IMAGE_SHA, ENGINE_VERSION):
+    assert pinned in start_script
+assert ENGINE_COMMIT in build_script
 
 # Archived lanes document their own pins and figures in their own trees. The current
 # README describes the deployment that replaced them.
@@ -90,7 +131,7 @@ for relative in (
     assert not (ROOT / relative).exists(), relative
 
 public_files = [ROOT / "README.md", ROOT / "NOTICE.md"]
-for directory in (ROOT / "assets", ROOT / "gguf"):
+for directory in (ROOT / "assets", ROOT / "gguf", ROOT / "exllamav3"):
     public_files.extend(
         path for path in directory.rglob("*")
         if path.is_file() and "__pycache__" not in path.parts and "runtime" not in path.parts and "local" not in path.parts

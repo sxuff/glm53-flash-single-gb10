@@ -11,6 +11,7 @@
 #   NAME         container name                            (default glm53-tabbyapi-primary)
 #   REPORT_DIR   where the gate scripts write their JSON   (default $HOME/.hermes/reports)
 #   METRICS      1 adds a loopback /metrics route with token counters (default 1; see ../metrics)
+#   ENGINE       1.5.2 (default) or 1.4.9 (retained rollback)
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_DIR="${MODEL_DIR:-$HOME/models/glm53-flash-exl3-2.05bpw}"
@@ -20,15 +21,21 @@ REPORT_DIR="${REPORT_DIR:-$HOME/.hermes/reports}"
 CONFIG="${CONFIG:-$here/../config/glm53-tabbyapi-vision-262k.yml}"
 METRICS="${METRICS:-1}"
 
-image='local/glm53-tabbyapi:f07131c-kda'
-expected_id='sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029'
+case "${ENGINE:-1.5.2}" in
+  1.5.2) image='local/glm53-tabbyapi:exl152-20260927'
+         expected_id='sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee'
+         expected_version='1.5.2' ;;
+  1.4.9) image='local/glm53-tabbyapi:f07131c-kda'
+         expected_id='sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029'
+         expected_version='1.4.9' ;;
+  *) printf 'unsupported ENGINE; use 1.5.2 or 1.4.9\n' >&2; exit 2 ;;
+esac
 actual_id="$(docker image inspect "$image" --format '{{.Id}}')"
 [[ "$actual_id" == "$expected_id" ]] || { printf 'image pin mismatch\n' >&2; exit 3; }
 
-# Source revision plus the ARM64 compatibility patch are pinned by that immutable ID.
-# exllamav3 1.4.9 is mandatory; never silently accept a different engine.
+# The image ID pins the TabbyAPI base and the selected exllamav3 build.
 version="$(docker run --rm --entrypoint python3 "$image" -c 'import importlib.metadata;print(importlib.metadata.version("exllamav3"))' 2>/dev/null)"
-[[ "$version" == '1.4.9' ]] || { printf 'engine pin mismatch: %s\n' "${version:-none}" >&2; exit 4; }
+[[ "$version" == "$expected_version" ]] || { printf 'engine pin mismatch: %s\n' "${version:-none}" >&2; exit 4; }
 
 # One GPU runtime at a time. Refuse if anything else is already holding the device.
 busy="$(docker ps --format '{{.Names}}' | grep -v "^${NAME}$" | grep -E 'glm53|llama|sglang|vllm|tabbyapi' || true)"
