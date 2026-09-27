@@ -99,12 +99,18 @@ def main() -> int:
     docs = [REPO / "README.md", ROOT / "README.md", ROOT / "RESULT.md", ROOT / "RESULT_CARD.md"]
     for path in docs:
         check_links(path)
-    narrative = "\n".join(path.read_text() for path in docs)
+    archive_narrative = "\n".join(path.read_text() for path in docs[1:])
     for value in ("15.96", "28.95", "1.8136", "81.3650107666", "15.65", "28.37", "113.99%",
-                  "not an isolated component A/B",
-                  "29.97", "11.63", "2.58x", "+157.7%", "26.1 GB", "96.97%", "15 / 15"):
-        if value not in narrative:
-            fail(f"public result value missing: {value}")
+                  "not an isolated component A/B"):
+        if value not in archive_narrative:
+            fail(f"archived result value missing: {value}")
+    current = docs[0].read_text()
+    for value in ("1.5.2", "29.00", "356.34", "238.99", "quick screen"):
+        if value not in current:
+            fail(f"current result value missing: {value}")
+    for stale_headline in ("29.97 tok/s", "96.97%", "26.1 GB"):
+        if stale_headline in current:
+            fail(f"historical result advertised as current: {stale_headline}")
 
     serve = (ROOT / "scripts/serve.sh").read_text()
     for token in (

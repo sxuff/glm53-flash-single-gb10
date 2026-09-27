@@ -1,9 +1,9 @@
 {
   "status": "verified",
   "card": "assets/glm53-exllamav3-tabbyapi-result-card.png",
-  "sha256": "8384924db9f39de1830548da92d9023b796f62307ae38018c32352b6b354ffaa",
+  "sha256": "d7598fe0337a7774d1f65e454e0b9838cc8f4870464fac7d11a8773827720374",
   "width_px": 1472,
   "height_px": 1968,
   "format": "PNG",
-  "lineage": "Historical full-suite 1.4.9 comparison plus separately labeled 1.5.2 quick screen"
+  "lineage": "1.5.2 quick-screen candidate metrics only; matched-prior deltas are sourced from the paired receipt"
 }
