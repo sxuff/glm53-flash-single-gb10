@@ -108,7 +108,9 @@ def main() -> int:
     for value in ("1.5.2", "29.00", "356.34", "238.99", "quick screen"):
         if value not in current:
             fail(f"current result value missing: {value}")
-    for stale_headline in ("29.97 tok/s", "96.97%", "26.1 GB"):
+    if "29.97 tok/s** headline below belongs to an earlier deployment" not in current:
+        fail("historical card headline lacks a cohort label")
+    for stale_headline in ("96.97%", "26.1 GB"):
         if stale_headline in current:
             fail(f"historical result advertised as current: {stale_headline}")
 

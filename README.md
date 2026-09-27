@@ -2,8 +2,6 @@
 
 A pinned TabbyAPI recipe for GLM-5.3 Flash EXL3 2.05 bpw with exllamav3 1.5.2 and MTP n=1 on one NVIDIA GB10. The serving profile configures 262,144 tokens and vision. These settings are not a claim that a full-depth prompt was benchmarked.
 
-![GLM-5.3 Flash EXL3 1.5.2 quick-screen result on one NVIDIA GB10](assets/glm53-exllamav3-tabbyapi-result-card.png)
-
 ## Measured quick screen
 
 Same checkpoint, TabbyAPI commit, FP16 cache, MTP n=1 and 262K + vision configuration on one GB10. Deltas use a matched prior engine run, **not** the older four-prompt deployment benchmark.
@@ -17,6 +15,12 @@ Same checkpoint, TabbyAPI commit, FP16 cache, MTP n=1 and 262K + vision configur
 | Candidate service cgroup swap | **0 B** | During observed loads and requests |
 
 Decode used 256 output tokens at temperature 0, one warm-up and **one measured request per prompt**. The long prompt was measured once, with 24 output tokens. This is a quick screen, not a variance estimate, full-depth 262K test, or full quality sweep. Output hashes differed across arms. [Measurements and protocol](exllamav3/results/glm53-exl152-quick-ab-20260927.json) · [functional checks](exllamav3/results/glm53-exl152-functional-canaries-20260927.json) · [card hash](exllamav3/results/glm53-exl152-card-asset-20260927.json).
+
+## Deployment card
+
+The full-suite **29.97 tok/s** headline below belongs to an earlier deployment. Only the separate quick-screen section reports 1.5.2 measurements.
+
+![GLM-5.3 Flash EXL3 deployment history and 1.5.2 quick-screen results on one NVIDIA GB10](assets/glm53-exllamav3-tabbyapi-result-card.png)
 
 ## Pinned recipe
 

@@ -56,7 +56,8 @@ for value in (
     "29.00", "+3.1%", "356.34", "+9.1%", "238.99", "−8.3%",
 ):
     assert value in readme, value
-for historical in ("29.97 tok/s", "96.97%", "26.1 GB", "exllamav3 1.4.9"):
+assert "29.97 tok/s** headline below belongs to an earlier deployment" in readme
+for historical in ("96.97%", "26.1 GB", "exllamav3 1.4.9"):
     assert historical not in readme, historical
 
 exl_root = ROOT / "exllamav3"
@@ -86,7 +87,7 @@ assert checks["checks"]["forced_tool"]["tool_calls"][0]["function"]["name"] == "
 assert checks["checks"]["vision_red_square"]["content"].strip() == "Red"
 assert card["sha256"] == hashlib.sha256(asset.read_bytes()).hexdigest()
 assert (card["width_px"], card["height_px"]) == (1472, 1968)
-assert "1.5.2 quick-screen candidate metrics only" in card["lineage"]
+assert "earlier full-suite results clearly separated" in card["lineage"]
 assert b"\x89PNG\r\n\x1a\n" == asset.read_bytes()[:8]
 for filename in re.findall(r"`(glm53-[\w-]+\.(?:json|md))`", readme):
     assert (exl_root / "results" / filename).exists(), filename
