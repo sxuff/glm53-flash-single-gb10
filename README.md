@@ -61,7 +61,7 @@ Reasoning effort defaults to **High** through `model.template_vars_default`. Per
 
 The same checkpoint on TensorFold 0.5.0 with a single-GPU packed-EXL3 port. Measured on one GB10:
 
-- **32.03 tok/s** pooled decode against 28.56 tok/s for exllamav3 1.5.2 on four fixed workloads (+12.1%).
+- **32.32 tok/s** greedy decode on the four fixed prompts: 2.78× the first SGLang deployment (11.63 tok/s) and +12.9% over exllamav3 1.5.2 (28.64 tok/s).
 - **26 to 31 tok/s** from a 123-token prompt to a 255,716-token prompt, with five of five planted codes retrieved at every depth.
 - **2.1 s** to the first token of the next turn on an 11,272-token conversation, 47.6 s without prompt-state reuse.
 - Prompt fill is slower: about 245 tok/s against 356 tok/s here.

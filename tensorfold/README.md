@@ -6,7 +6,9 @@ The same `turboderp/GLM-5.3-Flash-exl3` 2.05 bpw checkpoint as the [ExLlamaV3 la
 
 ## Measured
 
-Decode against ExLlamaV3 1.5.2 on the same checkpoint: four fixed workloads, 400 forced output tokens, greedy and temperature 0.6 / top-p 0.95, one warm-up and three measured requests per cell.
+On this repository's four fixed prompts at temperature 0, 400 forced output tokens, TensorFold decodes at **32.32 tok/s** pooled. The first deployment here, SGLang with an EXL3 adapter, measured 11.63 tok/s mean decode on the same prompts ([receipt](../exllamav3/results/glm53-phase0-2026-09-22.md)): **2.78×**. That pair is the card's headline; the earlier figure is one measured run per prompt, this one is three.
+
+Against ExLlamaV3 1.5.2 on the same checkpoint, greedy and temperature 0.6 / top-p 0.95, one warm-up and three measured requests per cell:
 
 | | ExLlamaV3 1.5.2 + TabbyAPI | TensorFold | Change |
 |---|---:|---:|---:|
@@ -87,4 +89,4 @@ Two behaviours to know about:
 
 `serving/cpu_json.py` and `serving/cpu_prepare.py` run the real request handling, prefill, snapshot and restore code over numerical doubles, with the checkpoint's tokenizer and no GPU. With the landing suites under `tests/` they pass on the served tree: 31, 12 and 146 tests. `serving/cache_equivalence.py` and `serving/depth_check.py` are the two live checks behind the tables above.
 
-The card is built by [`card/build_card.py`](card/build_card.py) from the depth-check receipt.
+The card is built by [`card/build_card.py`](card/build_card.py) from the depth-check receipt and rendered at 1600 × 900. It leaves the 86,068-token row out for space.
