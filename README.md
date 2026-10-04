@@ -1,6 +1,6 @@
 # GLM-5.3 Flash EXL3 on one NVIDIA GB10
 
-GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.5.0 behind an OpenAI-compatible endpoint: 262,144-token context, MTP n=1, prompt state reused between turns.
+GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.6.5 behind an OpenAI-compatible endpoint: 262,144-token context, MTP n=1, prompt state reused between turns.
 
 ![GLM-5.3 Flash on one NVIDIA GB10: 32.32 tok/s with TensorFold](assets/glm53-tensorfold-result-card.png)
 
@@ -23,10 +23,12 @@ Each row is one conversation: a document with five planted six-digit codes, then
 
 Receipts: [decode against ExLlamaV3](results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json) · [prompt sizes](results/glm53-tensorfold-depth-check-20261004.json) · [prompt-state reuse](results/glm53-tensorfold-cache-equivalence-20261004.json) and [long replies](results/glm53-tensorfold-cache-equivalence-long-replies-20261004.json) · [first deployment](exllamav3/results/glm53-phase0-2026-09-22.md)
 
+These figures were measured on TensorFold 0.5.0. A recheck on 0.6.5, up to 32,078 prompt tokens, came within 2%.
+
 ## Recipe
 
 - Checkpoint: `turboderp/GLM-5.3-Flash-exl3`, revision `51058cd551c7e570d87bd32a4adee720edce2349`, 2.05 bpw
-- TensorFold: `https://github.com/ashhart/TensorFold`, tag `v0.5.0`, commit `9cd52ab4daba68ddd09be89be8f23ad43175e821`
+- TensorFold: `https://github.com/ashhart/TensorFold`, tag `v0.6.5`, commit `609ca419abecebdc5a059498a613680bd3aa847f`
 - Container image: `sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee`, built by [`exllamav3/scripts/build-exl152-image.sh`](exllamav3/scripts/build-exl152-image.sh)
 - Environment: `EXL3_INT8_GEMV=2`
 
@@ -35,15 +37,15 @@ Two patches, applied in order from a clone of this repository:
 ```bash
 git clone https://github.com/ashhart/TensorFold
 cd TensorFold
-git checkout 9cd52ab4daba68ddd09be89be8f23ad43175e821
+git checkout 609ca419abecebdc5a059498a613680bd3aa847f
 git apply ../patches/01-exl3-single-gpu-port.patch
 git apply ../patches/02-serving.patch
 ```
 
 | Patch | SHA-256 | What it adds |
 |---|---|---|
-| [`01-exl3-single-gpu-port.patch`](patches/01-exl3-single-gpu-port.patch) | `a7c809f8f41c7bb6789b12b5242194819353d2e382f7fe1acaf268c2369739b3` | Loads the packed EXL3 checkpoint on one GPU |
-| [`02-serving.patch`](patches/02-serving.patch) | `d30cce966c26954c95951626d32d970f7bc4cb276dd4afbc26795fdce20a6f5c` | The server, the thinking guard, prompt-state reuse, stream keep-alive, and their tests |
+| [`01-exl3-single-gpu-port.patch`](patches/01-exl3-single-gpu-port.patch) | `eba18758e5152c378bc698f7fc0a52ff2c6154fc9e53b57df4c9096743f39ea4` | Loads the packed EXL3 checkpoint on one GPU |
+| [`02-serving.patch`](patches/02-serving.patch) | `9137cfdda8d57fa7702179608404c732d3f318dc4266c4fe1ce01d01ab69040d` | The server, the thinking guard, prompt-state reuse, stream keep-alive, and their tests |
 
 `serving/server.py` runs inside the container and `serving/supervisor.py` starts it. Both still import a memory guard, a loader and a service controller from the host they were written on, and those are not published yet. Until they are, the patches give you the serving code but not a launcher.
 
@@ -54,6 +56,7 @@ git apply ../patches/02-serving.patch
 - Thinking is capped at 3,000 tokens. At the cap the server writes a short closing sentence and the close tag, and the answer is then sampled normally. A run of repeated filler ("Hmm, hmm.") ends thinking the same way.
 - The next turn of a conversation resumes from the stored prompt state. `"prefix_cache": false` on a request fills the prompt again.
 - A streamed request gets an empty chunk every 15 seconds while it waits or fills its prompt. When the client disconnects, the fill stops.
+- `GET /metrics` returns Prometheus counters and histograms. `GET /health` returns the running totals as JSON.
 - Extra request fields: `thinking_budget`, `thinking_loop`, `prefix_cache`, `seed`, `response_format: {"type": "json_object"}`.
 
 ## Limits
@@ -77,4 +80,4 @@ git apply ../patches/02-serving.patch
 
 ## License
 
-Repository scripts and documentation are MIT licensed. Model weights retain their upstream terms. The archived DFlash2 drafter weights are CC BY-NC-ND 4.0 and require explicit acceptance before download. See [`NOTICE.md`](NOTICE.md).
+Repository scripts and documentation are MIT licensed. The patches change TensorFold source, which is Apache-2.0. Model weights retain their upstream terms. The archived DFlash2 drafter weights are CC BY-NC-ND 4.0 and require explicit acceptance before download. See [`NOTICE.md`](NOTICE.md).

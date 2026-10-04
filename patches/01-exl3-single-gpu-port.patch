@@ -1,19 +1,8 @@
 diff --git a/src/tensorfold/cli.py b/src/tensorfold/cli.py
-index 6a3a9d2..e4e6689 100644
+index d2039d2..9f0b1be 100644
 --- a/src/tensorfold/cli.py
 +++ b/src/tensorfold/cli.py
-@@ -106,6 +106,10 @@ def build_parser() -> argparse.ArgumentParser:
-                        help="don't ask GitHub whether a newer release exists (also TENSORFOLD_NO_UPDATE_CHECK=1)")
- 
-     cuda = serve.add_argument_group("NVIDIA GPUs (DGX Spark)")
-+    cuda.add_argument("--target-only", action="store_true",
-+                      help="GLM CUDA: omit MTP/vision/drafters and retained prefixes; serial target execution")
-+    cuda.add_argument("--eager", action="store_true",
-+                      help="GLM CUDA: no graph capture or startup calibration (fixed policies only)")
-     cuda.add_argument("--backend", choices=("auto", "mlx", "cuda"), default="auto",
-                       help="auto: MLX on macOS, CUDA elsewhere")
-     cuda.add_argument("--tp", type=int, choices=(1, 2), default=1,
-@@ -336,6 +340,15 @@ def _backend(choice: str, family: Any) -> str:
+@@ -237,6 +237,15 @@ def _backend(choice: str, family: Any) -> str:
      return backend
  
  
@@ -29,21 +18,21 @@ index 6a3a9d2..e4e6689 100644
  def _serve_cuda(args: argparse.Namespace, family: Any, model_dir: Path, context: int | None = None) -> int:
      """Serve with the family's CUDA engine (``cuda_engine``) behind ``tensorfold.cuda.server``."""
  
-@@ -346,9 +359,11 @@ def _serve_cuda(args: argparse.Namespace, family: Any, model_dir: Path, context:
+@@ -247,9 +256,11 @@ def _serve_cuda(args: argparse.Namespace, family: Any, model_dir: Path, context:
      if args.tp == 1 and args.rank != 0:
          raise ValueError("--rank 1 needs --tp 2")
      started = time.perf_counter()
--    drafter = "" if args.no_drafts else _drafter(family, args.drafter)
+-    drafter = "" if args.no_drafts else _drafter(family, args.drafter, "cuda")
 +    modes = _glm_modes(args, family, "cuda")
 +    no_drafts = bool(args.no_drafts or modes.get("target_only"))
-+    drafter = "" if no_drafts else _drafter(family, args.drafter)
++    drafter = "" if no_drafts else _drafter(family, args.drafter, "cuda")
      options: dict[str, Any] = {"drafter": drafter, "tp": int(args.tp), "rank": int(args.rank), "master": args.master,
 -                               "master_port": int(args.master_port), "no_drafts": bool(args.no_drafts)}
 +                               "master_port": int(args.master_port), "no_drafts": no_drafts, **modes}
      if getattr(args, "kv_dtype", "bf16") != "bf16":
          options["kv_dtype"] = args.kv_dtype
      options.update(_vision_options(args))
-@@ -427,6 +442,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
+@@ -359,6 +370,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
      if args.ple_on_ssd and not hasattr(family.package, "ple_bytes"):
          raise ValueError(f"--ple-on-ssd: {family.title} has no n-gram (PLE) tables to read from SSD")
      backend = _backend(args.backend, family)
@@ -51,8 +40,23 @@ index 6a3a9d2..e4e6689 100644
      _check_serve_options(args, family, backend, config_dir)
      families.require_readable(family, families.read_config(config_dir), backend)
      _note_untested(family, args.model)
+diff --git a/src/tensorfold/cli_args.py b/src/tensorfold/cli_args.py
+index 4ee8773..1eb65ac 100644
+--- a/src/tensorfold/cli_args.py
++++ b/src/tensorfold/cli_args.py
+@@ -124,6 +124,10 @@ def build_parser(handlers: dict[str, Callable[[argparse.Namespace], int]]) -> ar
+                        help="don't ask GitHub whether a newer release exists (also TENSORFOLD_NO_UPDATE_CHECK=1)")
+ 
+     cuda = serve.add_argument_group("NVIDIA GPUs (DGX Spark)")
++    cuda.add_argument("--target-only", action="store_true",
++                      help="GLM CUDA: omit MTP/vision/drafters and retained prefixes; serial target execution")
++    cuda.add_argument("--eager", action="store_true",
++                      help="GLM CUDA: no graph capture or startup calibration (fixed policies only)")
+     cuda.add_argument("--backend", choices=("auto", "mlx", "cuda"), default="auto",
+                       help="auto: MLX on macOS, CUDA elsewhere")
+     cuda.add_argument("--tp", type=int, choices=(1, 2), default=1,
 diff --git a/src/tensorfold/families/glm5_next/__init__.py b/src/tensorfold/families/glm5_next/__init__.py
-index f95a051..418a158 100644
+index fd7a3e0..7028df1 100644
 --- a/src/tensorfold/families/glm5_next/__init__.py
 +++ b/src/tensorfold/families/glm5_next/__init__.py
 @@ -1,4 +1,4 @@
@@ -61,7 +65,7 @@ index f95a051..418a158 100644
  
  from __future__ import annotations
  
-@@ -19,12 +19,22 @@ KERNEL_VERSION = "v1"
+@@ -19,6 +19,16 @@ KERNEL_VERSION = "v1"
  QUANT_METHODS = {"mlx": ("mlx",), "cuda": ("mlx", "exl3")}
  # the EXL3 variant the CUDA kernels read (4-bit trellis, the "mcg" codebook, routed experts only)
  EXL3_VARIANT = {"bits": 4, "codebook": "mcg", "scope": "glm53_routed_experts_only"}
@@ -78,6 +82,8 @@ index f95a051..418a158 100644
  # buffers of 200 ops and 200 MB, so a prompt chunk's memory frees as it runs; no TF32: row kernels repeat fp32
  MLX_ENV = {"MLX_MAX_OPS_PER_BUFFER": "200", "MLX_MAX_MB_PER_BUFFER": "200", "MLX_ENABLE_TF32": "0"}
  
+@@ -30,7 +40,7 @@ def _mac_reads(fmt: tuple) -> bool:
+ 
  
  def check(model_dir: str | Path) -> None:
 -    """Refuse what neither engine reads: MLX affine weights on a Mac; those or Mia's EXL3 layout on two GPUs."""
@@ -85,7 +91,7 @@ index f95a051..418a158 100644
  
      import sys
  
-@@ -36,12 +46,16 @@ def check(model_dir: str | Path) -> None:
+@@ -47,12 +57,17 @@ def check(model_dir: str | Path) -> None:
          # the CUDA engine's layout; the Mac engine refuses it before this through QUANT_METHODS (require_readable)
          found = config.get("quantization_config") or config.get("quantization") or {}
          got = {k: found.get(k) for k in EXL3_VARIANT}
@@ -101,11 +107,12 @@ index f95a051..418a158 100644
 +            print("[tensorfold] experimental packed mul1 GLM profile: TP1 only; CUDA numerical qualification "
 +                  "is required before deployment", flush=True)
 +        else:
-+            print("[tensorfold] legacy EXL3 support is experimental (docs/recipes/glm-5.3-flash.md)", flush=True)
-     elif quantization(config) != (4, 64):
-         raise ValueError(f"GLM-5.3-Flash's kernels read MLX 4-bit weights in groups of 64 ({MODELS[0]}) or, on "
-                          f"CUDA, EXL3 ({MODELS[1]}); this checkpoint has {describe_quantization(config)}. "
-@@ -65,8 +79,8 @@ def check(model_dir: str | Path) -> None:
++            print("[tensorfold] legacy EXL3 support is experimental: replies are exact, but the MLX checkpoint "
++                  f"({MODELS[0]}) is tested more and runs faster (docs/recipes/glm-5.3-flash.md)", flush=True)
+     elif quantization(config) != (4, 64) and not (sys.platform == "darwin" and _mac_reads(quantization(config))):
+         raise ValueError(f"GLM-5.3-Flash's Mac engine reads MLX affine weights of 2 to 8 bits in groups of 32, 64 or "
+                          f"128 ({MODELS[0]} is 4-bit in groups of 64), and the CUDA engine 4-bit groups of 64 or "
+@@ -88,8 +103,8 @@ def check(model_dir: str | Path) -> None:
              print(f"[tensorfold] this checkpoint has no MTP layer: decoding without MTP drafts ({MODELS[0]} has "
                    f"one)", flush=True)
          return
@@ -116,7 +123,7 @@ index f95a051..418a158 100644
  
  
  def has_mtp(model_dir: str | Path) -> bool:
-@@ -173,14 +187,25 @@ CUDA_QUANTIZATION = (4, 64)
+@@ -203,14 +218,25 @@ CUDA_QUANTIZATION = (4, 64)
  
  
  def cuda_engine(model_dir: str | Path, *, drafter: str = "", tp: int = 1, rank: int = 0, master: str = "",
@@ -149,7 +156,7 @@ index f95a051..418a158 100644
      from .cuda.engine import DEFAULT_POLICY, DFLASH_POLICY, GlmEngine
  
      if mtp_drafts is None:
-@@ -189,10 +214,11 @@ def cuda_engine(model_dir: str | Path, *, drafter: str = "", tp: int = 1, rank:
+@@ -219,10 +245,11 @@ def cuda_engine(model_dir: str | Path, *, drafter: str = "", tp: int = 1, rank:
          policy = DFLASH_POLICY          # no MTP drafts: every round still verifies DFlash2's drafts
      else:
          policy = str(int(mtp_drafts))
@@ -164,7 +171,7 @@ index f95a051..418a158 100644
  
  def __getattr__(name: str) -> Any:
 diff --git a/src/tensorfold/families/glm5_next/cuda/decode.py b/src/tensorfold/families/glm5_next/cuda/decode.py
-index 6a01236..14af035 100644
+index f8b4ec4..fd36150 100644
 --- a/src/tensorfold/families/glm5_next/cuda/decode.py
 +++ b/src/tensorfold/families/glm5_next/cuda/decode.py
 @@ -131,6 +131,8 @@ class Engine:
@@ -176,7 +183,7 @@ index 6a01236..14af035 100644
          n = mtp_stage(self.w, self.st, self.mbuf, next_tokens, hidden)
          dense = self.st.mtp_len + n <= self.w.cfg.dense_limit
          g, kind = None, "mtp"
-@@ -316,7 +318,7 @@ def prefill(e: Engine, prompt: Sequence[int], sampling: Sampling | None, *, mtp:
+@@ -347,7 +349,7 @@ def prefill(e: Engine, prompt: Sequence[int], sampling: Sampling | None, *, mtp:
      if not prompt:
          raise ValueError("prefill requires at least one token")
      w, st, b = e.w, e.st, e.pbuf
@@ -186,7 +193,7 @@ index 6a01236..14af035 100644
      if resume is None:
          e.reset()
 diff --git a/src/tensorfold/families/glm5_next/cuda/engine.py b/src/tensorfold/families/glm5_next/cuda/engine.py
-index 43c1af4..4ef92d5 100644
+index e6c4d2a..5d77b24 100644
 --- a/src/tensorfold/families/glm5_next/cuda/engine.py
 +++ b/src/tensorfold/families/glm5_next/cuda/engine.py
 @@ -1,10 +1,12 @@
@@ -203,8 +210,8 @@ index 43c1af4..4ef92d5 100644
  import struct
  import threading
  import time
-@@ -81,69 +83,145 @@ def _ints_f64(lo: int, hi: int) -> float:
-     return struct.unpack("<d", struct.pack("<2i", lo, hi))[0]
+@@ -105,82 +107,161 @@ def without_mtp(transform, layers: int):
+     return lambda name, info: (0, 0) if name.startswith(prefix) else transform(name, info)
  
  
 -class GlmEngine:
@@ -265,14 +272,15 @@ index 43c1af4..4ef92d5 100644
 +        if world == 1 and comm is not None:
 +            raise ValueError("world=1 requires comm=None")
          import torch
--
--        from tensorfold.cuda.comm import NCCL
+ 
+-        from tensorfold.cuda.comm import open_comm
          from .decode import Engine
          from .weights import Config, load
          from .split import rule
          from tensorfold.cuda.capacity import admit
--        from tensorfold.cuda.geometry import PREFILL_ROWS, draft_geometry, mla_geometry, split_weights
-+        from tensorfold.cuda.geometry import PREFILL_ROWS, draft_geometry, mla_geometry
+-        from tensorfold.cuda.geometry import (PREFILL_ROWS, dflash2_geometry, dflash2_weights, mla_geometry,
+-                                              split_weights)
++        from tensorfold.cuda.geometry import PREFILL_ROWS, dflash2_geometry, dflash2_weights, mla_geometry
  
          encode_policy(policy)                           # a bad default fails here, not in the first request
          torch.cuda.set_device(0)
@@ -280,12 +288,11 @@ index 43c1af4..4ef92d5 100644
 -        self.rank = rank
 -        self.policy = "0" if serial_only else policy
 -        self.serial_only = serial_only
--        self.comm = comm if comm is not None else NCCL(rank, 2, master, port)
+-        self.comm = comm if comm is not None else open_comm(rank, 2, master, port)
 -        self.comm.barrier()
 +        self.rank, self.world = rank, world
 +        self.target_only = bool(target_only)
 +        self.serial_only = bool(serial_only or target_only)
-+        self.load_mtp = not self.serial_only
 +        self.eager = bool(eager)
 +        self.calibrated = bool(calibrate and not eager and not self.serial_only)
 +        self.policy = "0" if self.serial_only else policy
@@ -296,11 +303,16 @@ index 43c1af4..4ef92d5 100644
 +            if comm is None:
 +                if not master:
 +                    raise ValueError("world=2 needs a master address")
-+                from tensorfold.cuda.comm import NCCL
-+                comm = NCCL(rank, world, master, port)
++                from tensorfold.cuda.comm import open_comm
++
++                comm = open_comm(rank, world, master, port)
 +            self.comm = comm
 +            self.comm.barrier()
          cfg = Config.read(model_dir)
++        # two ranks: TF_GLM_MTP decides (upstream); one GPU: the MTP head loads unless the run is serial
++        self.mtp_on = (mtp_head(drafter is not None, self.serial_only, cfg.mtp_layers) if world == 2
++                       else bool(cfg.mtp_layers) and not self.serial_only)
++        self.load_mtp = self.mtp_on
 +        prefill_rows = PREFILL_ROWS if prefill_rows is None else int(prefill_rows)
 +        if not 0 < prefill_rows <= PREFILL_ROWS:
 +            raise ValueError(f"prefill_rows must be between 1 and {PREFILL_ROWS}; admission bounds this chunk size")
@@ -308,6 +320,11 @@ index 43c1af4..4ef92d5 100644
          explicit = context is not None if context_explicit is None else bool(context_explicit)
          from . import LATENT
  
+-        # TF_GLM_MTP off: the MTP layer's tensors, caches and buffers are neither loaded nor estimated
+-        self.mtp_on = mtp_head(drafter is not None, serial_only, cfg.mtp_layers)
+-        weights_estimate = split_weights(rule)
+-        if not self.mtp_on:
+-            weights_estimate = without_mtp(weights_estimate, cfg.layers)
 +        transform = _weight_transform(rule, world, cfg.layers if not self.load_mtp else 0, self.load_mtp)
 +        self.packed_exl3, adapter_workspace = False, 0
 +        if world == 1 and getattr(cfg, "quant", "mlx") == "exl3":
@@ -322,7 +339,7 @@ index 43c1af4..4ef92d5 100644
 +
 +        def main_geometry(text):
 +            geometry = mla_geometry(_target_text(text, self.load_mtp), world, MAX_ROWS,
-+                                    minimum_slots=DENSE_CAPACITY, latent=LATENT)
++                                    minimum_slots=DENSE_CAPACITY, latent=LATENT, mtp=self.load_mtp)
 +            if adapter_workspace:
 +                from tensorfold.cuda.geometry import with_fixed
 +                geometry = with_fixed(geometry, adapter_workspace)
@@ -330,11 +347,14 @@ index 43c1af4..4ef92d5 100644
 +
          self.capacity_plan = admit(model_dir, context if explicit else cfg.dense_limit, explicit, torch,
 -                                   lambda text: mla_geometry(text, 2, MAX_ROWS, minimum_slots=DENSE_CAPACITY,
--                                                             latent=LATENT),
--                                   split_weights(rule), rank=rank, world=2, gather=self._gather_ints,
--                                   draft_dir=drafter, draft_geometry=lambda text: draft_geometry(text, 2, MAX_ROWS))
+-                                                             latent=LATENT, mtp=self.mtp_on),
+-                                   weights_estimate, rank=rank, world=2, gather=self._gather_ints,
+-                                   draft_dir=drafter, draft_weights=lambda d: dflash2_weights(d, 2),
+-                                   draft_geometry=lambda text: dflash2_geometry(text, 2, MAX_ROWS, ring=DRAFT_RING))
 +                                   main_geometry, transform, rank=rank, world=world, gather=self._gather_ints,
-+                                   draft_dir=drafter, draft_geometry=lambda text: draft_geometry(text, world, MAX_ROWS))
++                                   draft_dir=drafter, draft_weights=lambda d: dflash2_weights(d, world),
++                                   draft_geometry=lambda text: dflash2_geometry(text, world, MAX_ROWS,
++                                                                                ring=DRAFT_RING))
 +        self.capacity_plan["adapter_workspace_bytes_estimate"] = adapter_workspace
          self.limit = self.capacity_plan["context_window"]
          capacity = self.capacity_plan["cache_slots"]
@@ -342,9 +362,10 @@ index 43c1af4..4ef92d5 100644
          # both ranks must run the same calls: refuse to start when they were given different settings
 -        prefill_rows = PREFILL_ROWS if prefill_rows is None else int(prefill_rows)
 -        mine = [int(drafter is not None), capacity, int(long_context), int(serial_only), int(LATENT),
--                prefill_rows]
+-                prefill_rows, int(self.mtp_on), int(DRAFT_RING)]
 +        mine = [int(drafter is not None), capacity, int(long_context), int(self.serial_only), int(LATENT),
-+                prefill_rows, int(self.target_only), int(self.eager), int(self.calibrated), int(self.load_mtp)]
++                prefill_rows, int(self.target_only), int(self.eager), int(self.calibrated), int(self.load_mtp),
++                int(DRAFT_RING)]
          # other conversations' kept prompts get what the window leaves, at most TF_GLM_CACHE_GIB, the same on both ranks
          plan = self.capacity_plan
 -        wanted = int(float(os.environ.get("TF_GLM_CACHE_GIB", "3")) * 2 ** 30)
@@ -353,12 +374,14 @@ index 43c1af4..4ef92d5 100644
          both = self._gather_ints(mine + [spare >> 20])
 -        if both[0][:-1] != both[1][:-1]:
 -            raise RuntimeError("the two ranks were started with different settings (draft model, context, drafts, "
--                               "TF_GLM_LATENT): "
+-                               "TF_GLM_LATENT, TF_GLM_MTP, TF_GLM_DRAFT_RING): "
 -                               f"rank 0 {both[0][:-1]}, rank 1 {both[1][:-1]}; pull the draft model on both machines "
 -                               "(or pass --drafter none to both) and give both the same flags")
 -        self.cache_bytes = min(both[0][-1], both[1][-1]) << 20
 +        if len(both) != world or any(row[:-1] != mine for row in both):
-+            raise RuntimeError(f"CUDA ranks were started with different settings: {both}; use the same flags")
++            raise RuntimeError("CUDA ranks were started with different settings (draft model, context, drafts, "
++                               f"TF_GLM_LATENT, TF_GLM_MTP, TF_GLM_DRAFT_RING): {both}; pull the draft model on both "
++                               "machines (or pass --drafter none to both) and give both the same flags")
 +        self.cache_bytes = min(row[-1] for row in both) << 20
          plan["kept_bytes"] = self.cache_bytes
          for key in ("serving_peak_bytes_estimate", "total_bytes_estimate"):
@@ -366,24 +389,32 @@ index 43c1af4..4ef92d5 100644
          if rank == 0 and self.cache_bytes < wanted:
              print(f"[tensorfold] other conversations' prompts are kept in {self.cache_bytes / 2 ** 30:.1f} GiB, what "
                    f"the {self.limit}-token window leaves (TF_GLM_CACHE_GIB asks {wanted / 2 ** 30:.1f})", flush=True)
--        w = load(model_dir, rank=rank)
+-        if not self.mtp_on and drafter is None and not serial_only:
++        if not self.mtp_on and drafter is None and not self.serial_only:
+             raise ValueError(("TF_GLM_MTP=0 leaves" if cfg.mtp_layers else "this checkpoint has") + " no MTP head and "
+                              "no DFlash2 draft model was given, so every round would decode one token: pull the draft "
+                              "model on both machines (--drafter), or pass --no-drafts to both for the serial reference")
+-        w = load(model_dir, rank=rank, mtp=self.mtp_on)
 +        w = load(model_dir, rank=rank, world=world, load_mtp=self.load_mtp)
          w.comm = self.comm
+-        self.comm.ready("loading")                   # a peer stuck loading is named, not waited on in NCCL
 -        self.comm.barrier()
--        if w.mtp is None and drafter is None and not serial_only:
 +        if not self.load_mtp and w.mtp is not None:
 +            raise RuntimeError("loader violated load_mtp=False: refusing dormant MTP allocation/work")
 +        w.meta = {**getattr(w, "meta", {}), "target_only": self.target_only, "load_mtp": self.load_mtp}
 +        if self.comm is not None:
++            self.comm.ready("loading")               # a peer stuck loading is named, not waited on in NCCL
 +            self.comm.barrier()
-+        if w.mtp is None and drafter is None and not self.serial_only:
-             raise ValueError("this checkpoint has no MTP head and no DFlash2 draft model was given, so every round "
-                              "would decode one token: pull the draft model on both machines (--drafter), or pass "
-                              "--no-drafts to both for the serial reference")
-@@ -153,12 +231,13 @@ class GlmEngine:
+         self.w = w
+-        if rank == 0 and cfg.mtp_layers and not self.mtp_on:
++        if rank == 0 and world == 2 and cfg.mtp_layers and not self.mtp_on:
+             print("[tensorfold] the checkpoint's MTP head is not loaded (TF_GLM_MTP=" +
+                   (os.environ.get("TF_GLM_MTP", "").strip() or MTP_DEFAULT) + "): " +
+                   ("DFlash2 drafts every request" if drafter is not None else "--no-drafts"), flush=True)
+@@ -189,12 +270,13 @@ class GlmEngine:
              from .dflash2 import Drafter
  
-             self.drafter = Drafter(drafter, w, capacity=capacity)
+             self.drafter = Drafter(drafter, w, capacity=capacity, ring=DRAFT_RING)
 -        self.e = Engine(w, capacity=capacity, max_rows=MAX_ROWS, prefill_rows=prefill_rows, graphs=True, graph_rows=GRAPH_ROWS,
 +        self.e = Engine(w, capacity=capacity, max_rows=MAX_ROWS, prefill_rows=prefill_rows,
 +                        graphs=not self.eager, graph_rows=(1,) if self.serial_only else GRAPH_ROWS,
@@ -397,8 +428,8 @@ index 43c1af4..4ef92d5 100644
 +        if rank == 0 and self.costs is not None:
              c = self.costs
              print(f"[tensorfold] drafter timings (ms, fastest of 7): {c['timed']}", flush=True)
-             print("[tensorfold] drafter costs (ms): verify " + " ".join(f"{v:.1f}" for v in c["verify"]) +
-@@ -170,7 +249,7 @@ class GlmEngine:
+             mtp = (f"; MTP draft {c['mtp']:.2f} (+{c['mtp_step']:.2f} a chained draft, +{c['mtp_row']:.2f} a row)"
+@@ -207,7 +289,7 @@ class GlmEngine:
          # kept conversations (decode.Snapshot, least recently used first) and the live caches' ids; states and saved rows stay within cache_bytes
          self.cache: list = []
          self.live: list[int] = []
@@ -407,7 +438,7 @@ index 43c1af4..4ef92d5 100644
  
      def _calibrate(self) -> dict:
          """Per-piece ms for ``drafter_choice.DrafterChoice``: fastest of interleaved passes, equal on both ranks."""
-@@ -189,7 +268,7 @@ class GlmEngine:
+@@ -226,7 +308,7 @@ class GlmEngine:
          def tokens(n: int) -> list[int]:
              return [int(t) for t in rng.integers(0, vocab, n)]
  
@@ -416,7 +447,7 @@ index 43c1af4..4ef92d5 100644
          hidden = e.pbuf.fnormed[:MAX_ROWS].clone()          # rows for timing the draft steps
          one, six = tokens(1), tokens(6)
          start = st.mtp_len
-@@ -231,9 +310,12 @@ class GlmEngine:
+@@ -268,9 +350,12 @@ class GlmEngine:
                  back()
          names = list(best)
          mine = torch.tensor([best[n] for n in names], dtype=torch.float32, device="cuda")
@@ -432,7 +463,7 @@ index 43c1af4..4ef92d5 100644
          e.reset()
          if self.drafter is not None:
              self.drafter.reset()
-@@ -249,29 +331,39 @@ class GlmEngine:
+@@ -286,11 +371,13 @@ class GlmEngine:
                  "taps_row": max(both.get("taps8", 0.0) / 8, 0.0), "timed": {k: round(v, 2) for k, v in both.items()}}
  
      def _gather_ints(self, values: list[int]) -> list[list[int]]:
@@ -446,6 +477,9 @@ index 43c1af4..4ef92d5 100644
 -        return [got[:len(values)].tolist(), got[len(values):].tolist()]
 +        return got.view(self.world, -1).tolist()
  
+     # the idle doorbell: rank 1 waits for each request on the rendezvous store (no store: no doorbell), not in NCCL
+     def _store(self):
+@@ -322,20 +409,28 @@ class GlmEngine:
      def _share(self, values: list[int] | None) -> list[int]:
          """Rank 0's int list on every rank (a length, then the values, through the all-gather)."""
  
@@ -476,7 +510,7 @@ index 43c1af4..4ef92d5 100644
          if code[0] == 4 and self.drafter is not None and self.w.cfg.quant == "exl3":
              return encode_policy(EXL3_AUTO)
          if self.w.mtp is None and code[0] in (1, 2, 3, 4, 5):
-@@ -281,9 +373,11 @@ class GlmEngine:
+@@ -345,9 +440,11 @@ class GlmEngine:
      def _drafters(self, code: list[int]) -> tuple[bool, bool, bool]:
          """(auto, MTP drafts, DFlash2 drafts) for a policy code."""
  
@@ -489,33 +523,34 @@ index 43c1af4..4ef92d5 100644
  
      def _resume(self, prompt: list[int], code: list[int]):
          """The longest snapshot of a strict prefix of ``prompt`` whose draft caches fit the request's drafters."""
-@@ -303,6 +397,8 @@ class GlmEngine:
+@@ -367,6 +464,8 @@ class GlmEngine:
          self.cache.remove(snap)
  
      def _remember(self, snap) -> None:
 +        if self.cache_entries <= 0 or self.cache_bytes <= 0:
 +            return
-         for c in [c for c in self.cache if c.ids == snap.ids]:
+         for c in [c for c in self.cache if c.ids == snap.ids and c is not snap]:
              self._drop(c)
-         self.cache.append(snap)
-@@ -367,6 +463,7 @@ class GlmEngine:
-         from .decode import DepthPolicy, dflash_decode, mtp_decode, prefill, serial_decode, take_snapshot
+         self.cache[:] = [c for c in self.cache if c is not snap] + [snap]   # a resumed prompt kept again moves last
+@@ -431,6 +530,7 @@ class GlmEngine:
+         from .decode import DepthPolicy, dflash_decode, mtp_decode, prefill, serial_decode
          from .drafter_choice import DrafterChoice, auto_decode
  
 +        code = self._effective(code)
          auto, use_mtp, use_dflash = self._drafters(code)
          drafter = self.drafter if use_dflash else None
          t0 = time.perf_counter()
-@@ -381,7 +478,7 @@ class GlmEngine:
+@@ -444,7 +544,8 @@ class GlmEngine:
+             hit.rows, hit.nbytes = None, 0            # live again
          self.live = list(prompt)
-         first = prefill(self.e, prompt, sampling, mtp=use_mtp, drafter=drafter, resume=hit)
+         first = prefill(self.e, prompt, sampling, mtp=use_mtp, drafter=drafter, resume=hit,
+-                        keep_at=max(1, len(prompt) - 1) if draft else None, keep=self._remember)
++                        keep_at=max(1, len(prompt) - 1) if draft and self.cache_entries > 0 and self.cache_bytes > 0
++                        else None, keep=self._remember)
          prefill_s = time.perf_counter() - t0
--        if draft:
-+        if draft and self.cache_entries > 0 and self.cache_bytes > 0:
-             self._remember(take_snapshot(self.e, prompt, self.e.last_hidden if use_mtp else None, mtp=use_mtp,
-                                          drafter=drafter))
          stats: dict[str, Any] = {"prefill_s": prefill_s, "cached": cut}
-@@ -397,6 +494,8 @@ class GlmEngine:
+         on_tokens([first])
+@@ -459,6 +560,8 @@ class GlmEngine:
              _, explore, every, margin, sampled_too = policy
              choice = None
              if drafter is not None and (greedy or sampled_too):
@@ -524,7 +559,7 @@ index 43c1af4..4ef92d5 100644
                  choice = DrafterChoice(self.costs, first="f" if greedy else "m", explore=explore, every=every,
                                         margin=margin)
              res = auto_decode(self.e, drafter, first, max_tokens, sampling, choice=choice, m_policy=m_policy,
-@@ -432,7 +531,8 @@ class GlmEngine:
+@@ -496,7 +599,8 @@ class GlmEngine:
              spec = getattr(self.request, "policy", None) or self.policy
          code = self._effective(encode_policy(spec))
          stop_eos = bool(getattr(self.request, "stop_eos", True))
@@ -534,7 +569,7 @@ index 43c1af4..4ef92d5 100644
          seed = (sampling.seed if sampling else 0) & 0xFFFFFFFFFFFFFFFF
          header = [max_tokens, int(stop_eos), int(draft), len(hit.ids) if hit is not None else 0,
                    seed & 0x7FFFFFFF, (seed >> 31) & 0x7FFFFFFF, seed >> 62,
-@@ -452,6 +552,8 @@ class GlmEngine:
+@@ -558,6 +662,8 @@ class GlmEngine:
      def follow(self) -> None:
          """Rank 1: mirror every request rank 0 serves, forever."""
  
@@ -544,21 +579,21 @@ index 43c1af4..4ef92d5 100644
  
          while True:
 diff --git a/src/tensorfold/families/glm5_next/cuda/forward.py b/src/tensorfold/families/glm5_next/cuda/forward.py
-index 40f1fd1..19906f4 100644
+index f073b6e..1fe5260 100644
 --- a/src/tensorfold/families/glm5_next/cuda/forward.py
 +++ b/src/tensorfold/families/glm5_next/cuda/forward.py
-@@ -11,7 +11,9 @@ import triton.language as tl
- from tensorfold.cuda import experts as grouped
+@@ -15,7 +15,9 @@ from tensorfold.cuda.exl3.experts import Scratch as Exl3Scratch
+ from tensorfold.cuda.geometry import MLA_PROMPT_ATT_ROWS as PROMPT_ATT_ROWS   # a dense latent call's prompt rows
  from tensorfold.cuda.kernels import prefill_attention, qmm as shared
  
--from . import glue, kda as kda_mod, latent, prof, qmm, sparse
-+from . import glue, kda as kda_mod, latent, prof, qmm, sparse, packed
+-from . import exl3_generic, glue, kda as kda_mod, latent, prof, qmm, sparse
++from . import exl3_generic, glue, kda as kda_mod, latent, prof, qmm, sparse, packed
 +from .prefill import routed_micro_windows
 +from tensorfold.cuda.exl3 import experts as generic_exl3
  from .attention import AttnScratch, attention, kv_write
  from .weights import LayerW, Weights
  
-@@ -44,9 +46,10 @@ class Buffers:
+@@ -58,9 +60,10 @@ class Buffers:
              width = kda_layers[0].kda.proj.n if kda_layers else 0
              self.kproj = torch.zeros((1, rows, width), dtype=bf, device=dev)
              self.kscratch = kda_mod.KDAScratch(rows, LL, dev)
@@ -571,25 +606,27 @@ index 40f1fd1..19906f4 100644
          self.normed = torch.empty((rows, D), dtype=bf, device=dev)
          self.xs = torch.empty((rows, D // 64), dtype=f32, device=dev)
          self.post = torch.empty((rows, S), dtype=f32, device=dev)
-@@ -89,10 +92,14 @@ class Buffers:
-         self.plan = grouped.Plan(rows, slots, c.experts + 1, dev, prefill=prefill and not exl3)
+@@ -104,9 +107,16 @@ class Buffers:
          self.exl3 = None
          if c.quant == "exl3":            # EXL3 routed experts, and the shared expert as a BF16 MLP
--            from .exl3_mm import Scratch
--
              sl = c.shared_width // w.world
--            self.exl3 = Scratch(rows, slots, D, ml, dev)
+-            shape = SimpleNamespace(dims=D, width=ml, count=c.experts)
+-            self.exl3 = Exl3Scratch(shape, rows, slots, device=dev)
+-            self.ey = self.exl3.y.view(rows, slots, D)
 +            if w.meta.get("packed_exl3"):
++                # packed TP1: a prompt chunk's routed experts run in windows of up to 128 rows, copied into ey
 +                ex = next((l.moe.experts for l in w.layers if l.moe is not None),
 +                          w.mtp.layer.moe.experts if w.mtp is not None else None)
 +                self.exl3 = generic_exl3.Scratch(ex, min(rows, 128), slots, device=dev) if ex is not None else None
++                self.ey = torch.empty((rows, slots, D), dtype=f32, device=dev)
 +            else:
-+                from .exl3_mm import Scratch
-+                self.exl3 = Scratch(rows, slots, D, ml, dev)
++                shape = SimpleNamespace(dims=D, width=ml, count=c.experts)
++                self.exl3 = Exl3Scratch(shape, rows, slots, device=dev)
++                self.ey = self.exl3.y.view(rows, slots, D)
              self.sgu = torch.empty((rows, 2 * sl), dtype=bf, device=dev)
              self.sact = torch.empty((rows, sl), dtype=bf, device=dev)
              self.sxs = torch.empty((rows, sl // 64), dtype=f32, device=dev)
-@@ -100,23 +107,27 @@ class Buffers:
+@@ -114,23 +124,27 @@ class Buffers:
          # rank partials
          self.part = torch.empty((rows, D), dtype=f32, device=dev)
          self.gath = torch.empty((w.world * rows * D,), dtype=f32, device=dev)
@@ -622,7 +659,7 @@ index 40f1fd1..19906f4 100644
  
      def set_taps(self, layers: tuple[int, ...], hidden: int) -> None:
          self.tap_at = {}
-@@ -233,6 +244,8 @@ def gather(w: Weights, b: Buffers, R: int) -> torch.Tensor:
+@@ -247,6 +261,8 @@ def gather(w: Weights, b: Buffers, R: int) -> torch.Tensor:
  def mm(b: Buffers, x: torch.Tensor, q, xs: torch.Tensor | None, out: torch.Tensor, f32: bool = False) -> torch.Tensor:
      """A projection: 4-bit ones of a prompt chunk on the shared prefill matmul, the rest on ``qmm.matmul``."""
  
@@ -631,7 +668,7 @@ index 40f1fd1..19906f4 100644
      if b.prefill and isinstance(q, qmm.Q4):
          return shared.prefill_matmul(x, q, f32=f32, out=out)
      return qmm.matmul(x, q, xs, out=out, f32=f32, part=b.sk)
-@@ -287,7 +300,10 @@ def dsa_block(layer: LayerW, w: Weights, kc: torch.Tensor, vc: torch.Tensor, pos
+@@ -311,7 +327,10 @@ def dsa_block(layer: LayerW, w: Weights, kc: torch.Tensor, vc: torch.Tensor, pos
          ik, ig, pk = index
          ix = a.index
          mm(b, b.normed[:R], ix.kw, b.xs[:R], b.ikr[:R])
@@ -643,7 +680,7 @@ index 40f1fd1..19906f4 100644
          sparse.index_update(b.ikr[:R, :c.index_dim], b.igr[:R], ix.ln_w, ix.ln_b, ix.ape, ik, ig, pk, pos_dev)
      if sparse_rows and host_pos >= c.dense_limit:     # every row sparse: the dense pass is skipped
          o = torch.empty((R, HL, c.v_dim), dtype=torch.bfloat16, device=b.q.device) if b.prefill else b.attn.out[:R]
-@@ -321,7 +337,10 @@ def _dsa_latent(a, w: Weights, lc: torch.Tensor, pos_dev: torch.Tensor, b: Buffe
+@@ -360,7 +379,10 @@ def _dsa_latent(a, w: Weights, lc: torch.Tensor, pos_dev: torch.Tensor, b: Buffe
          ix = a.index
          with prof.timed("dsa: indexer update"):
              mm(b, b.normed[:R], ix.kw, b.xs[:R], b.ikr[:R])
@@ -655,7 +692,7 @@ index 40f1fd1..19906f4 100644
              sparse.index_update(b.ikr[:R, :c.index_dim], b.igr[:R], ix.ln_w, ix.ln_b, ix.ape, ik, ig, pk, pos_dev)
      with prof.timed("dsa: absorb"):
          qa = latent.absorb_q(b.q[:R], a.absorb, s.qa[:R])
-@@ -354,14 +373,21 @@ def moe_block(layer: LayerW, w: Weights, b: Buffers, R: int) -> torch.Tensor:
+@@ -393,13 +415,19 @@ def moe_block(layer: LayerW, w: Weights, b: Buffers, R: int) -> torch.Tensor:
      c = w.cfg
      m = layer.moe
      with prof.timed("moe: route"):
@@ -665,22 +702,19 @@ index 40f1fd1..19906f4 100644
 +        else:
 +            glue.router(b.normed[:R], m.router, b.mlog[:R])
          glue.select(b.mlog[:R], m.bias, b.pick[:R], b.wts[:R], c.top_k, c.experts, c.routed_scale, c.norm_topk)
--        grouped.route(b.pick[:R], b.plan)
-+        if not w.meta.get("packed_exl3"):
-+            grouped.route(b.pick[:R], b.plan)
+         if m.shared is None:
+             grouped.route(b.pick[:R], b.plan)
      if m.shared is not None:
          # EXL3: the routed slots through the trellis kernels, the shared expert (last slot) through BF16 matmuls
-         from . import exl3_mm
- 
--        exl3_mm.routed(b.normed[:R], b.pick, b.plan, m.experts, b.exl3, b.ey.view(-1, c.hidden), R, c.limit)
+-        exl3_generic.routed(b.normed[:R], b.pick, m.experts, b.exl3, R, c.limit)
 +        if w.meta.get("packed_exl3"):
 +            routed_micro_windows(b.normed[:R], b.pick[:R], m.experts, b.exl3, b.ey[:R], R, c.limit)
 +        else:
-+            exl3_mm.routed(b.normed[:R], b.pick, b.plan, m.experts, b.exl3, b.ey.view(-1, c.hidden), R, c.limit)
++            exl3_generic.routed(b.normed[:R], b.pick, m.experts, b.exl3, R, c.limit)
          s = m.shared
          mm(b, b.normed[:R], s.gu, b.xs[:R], b.sgu[:R])
          glue.swiglu(b.sgu[:R], b.sact[:R], b.sxs[:R], c.limit)
-@@ -395,13 +421,13 @@ def layer_forward(layer: LayerW, w: Weights, st: State, b: Buffers, R: int, nch:
+@@ -433,13 +461,13 @@ def layer_forward(layer: LayerW, w: Weights, st: State, b: Buffers, R: int, nch:
              g = dsa_block(layer, w, st.kc[di], st.vc[di], st.pos_dev, b, R, nch,
                            st.index[di] if st.index is not None else None, host_pos, sparse_np)
      with prof.timed("hc"):
@@ -1222,7 +1256,7 @@ index 8f51c55..b8756fd 100644
  
  def write(path: str, tensors: list[tuple[str, str, list[int], np.ndarray]], metadata: dict | None) -> None:
 diff --git a/src/tensorfold/families/glm5_next/cuda/weights.py b/src/tensorfold/families/glm5_next/cuda/weights.py
-index bc0b47f..9c28902 100644
+index 5f81a7b..5e099e6 100644
 --- a/src/tensorfold/families/glm5_next/cuda/weights.py
 +++ b/src/tensorfold/families/glm5_next/cuda/weights.py
 @@ -1,9 +1,13 @@
@@ -1241,9 +1275,9 @@ index bc0b47f..9c28902 100644
  from pathlib import Path
  from typing import Any
  
-@@ -13,9 +17,13 @@ from tensorfold.cuda import experts as grouped
+@@ -13,17 +17,24 @@ from tensorfold.cuda import experts as grouped
  
- from .exl3_mm import Exl3Experts, words as exl3_words
+ from tensorfold.cuda.exl3.experts import Exl3RoutedExperts as Exl3Experts
  from . import latent
 +from .packed import PlainLinear, ComposedLinear, PlainAbsorb, resident_transform, workspace_bytes
 +from tensorfold.cuda.exl3.linear import Exl3Linear
@@ -1254,8 +1288,23 @@ index bc0b47f..9c28902 100644
 +Projection = Q4 | B16 | Exl3Linear | PlainLinear | ComposedLinear
  
  
- @dataclass
-@@ -53,7 +61,7 @@ class Config:
+-def bits_of(quant: dict) -> int:
+-    """The checkpoint's one bit width; a mixed-bit encode (bits such as "mixed_k34_per_tensor") is refused by name."""
++def bits_of(quant: dict) -> float:
++    """The checkpoint's one bit width (a packed EXL3 encode names a fraction, such as 2.05); a mixed-bit encode
++    (bits such as "mixed_k34_per_tensor") is refused by name."""
+ 
+     bits = quant.get("bits", 4)
+-    if isinstance(bits, int) or (isinstance(bits, str) and bits.isdigit()):
+-        return int(bits)
++    if isinstance(bits, (int, float)) and not isinstance(bits, bool):
++        return float(bits)
++    if isinstance(bits, str) and bits.replace(".", "", 1).isdigit():
++        return float(bits)
+     raise ValueError(f"this checkpoint's quantization bits are {bits!r}: GLM-5.3 on CUDA reads one bit width a "
+                      "checkpoint, so mixed-bit EXL3 encodes are not supported yet")
+ 
+@@ -63,7 +74,7 @@ class Config:
      eos: tuple[int, ...]
      mtp_layers: int
      group_size: int
@@ -1264,16 +1313,7 @@ index bc0b47f..9c28902 100644
      quant: str = "mlx"         # "mlx" (affine 4-bit everywhere) or "exl3" (EXL3 routed experts, BF16 elsewhere)
  
      @classmethod
-@@ -87,7 +95,7 @@ class Config:
-             index_topk=int(t.get("index_topk", 2048)), kpool=int(t.get("index_kpool", 4)),
-             limit=float(t.get("swiglu_limit", 10.0)), kinds=kinds, mlp_kinds=mlp_kinds, eos=eos,
-             mtp_layers=int(t.get("num_nextn_predict_layers", 0)), group_size=int(quant.get("group_size", 64)),
--            bits=int(quant.get("bits", 4)), quant=str(quant.get("quant_method") or "mlx").lower(),
-+            bits=float(quant.get("bits", 4)), quant=str(quant.get("quant_method") or "mlx").lower(),
-         )
- 
-     @property
-@@ -106,14 +114,14 @@ class HCW:
+@@ -121,14 +132,14 @@ class HCW:
  
  @dataclass
  class KDAW:
@@ -1292,7 +1332,7 @@ index bc0b47f..9c28902 100644
      heads: int
  
      @property
-@@ -133,8 +141,8 @@ class KDAW:
+@@ -148,8 +159,8 @@ class KDAW:
  class IndexW:
      """Replicated DSA indexer weights include key and query projections, head weights, key LayerNorm, pool gates, and pool position bias."""
  
@@ -1303,7 +1343,7 @@ index bc0b47f..9c28902 100644
      ln_w: torch.Tensor
      ln_b: torch.Tensor
      gate: torch.Tensor
-@@ -143,13 +151,13 @@ class IndexW:
+@@ -158,13 +169,13 @@ class IndexW:
  
  @dataclass
  class DSAW:
@@ -1322,7 +1362,7 @@ index bc0b47f..9c28902 100644
      heads: int
      index: IndexW | None = None
      absorb: object = None     # latent.AbsorbW: kv_b split per head, for attention on the latent cache
-@@ -157,8 +165,8 @@ class DSAW:
+@@ -172,8 +183,8 @@ class DSAW:
  
  @dataclass
  class MLPW:
@@ -1333,7 +1373,7 @@ index bc0b47f..9c28902 100644
      width: int
  
  
-@@ -166,7 +174,7 @@ class MLPW:
+@@ -181,7 +192,7 @@ class MLPW:
  class MoEW:
      router: torch.Tensor      # [E, D] bf16
      bias: torch.Tensor        # [E] fp32
@@ -1342,7 +1382,7 @@ index bc0b47f..9c28902 100644
      shared: MLPW | None = None            # EXL3 checkpoints: the shared expert (BF16)
  
  
-@@ -188,7 +196,7 @@ class LayerW:
+@@ -203,7 +214,7 @@ class LayerW:
  class MTPW:
      enorm: torch.Tensor
      hnorm: torch.Tensor
@@ -1351,7 +1391,7 @@ index bc0b47f..9c28902 100644
      norm: torch.Tensor        # shared_head.norm
      layer: LayerW             # DSA + MoE, plain residual (no hyper-connections)
  
-@@ -196,10 +204,10 @@ class MTPW:
+@@ -211,10 +222,10 @@ class MTPW:
  @dataclass
  class Weights:
      cfg: Config
@@ -1364,7 +1404,7 @@ index bc0b47f..9c28902 100644
      mtp: MTPW | None
      rank: int
      world: int
-@@ -218,10 +226,15 @@ class Weights:
+@@ -233,10 +244,15 @@ class Weights:
  
          def add(t):
              nonlocal total
@@ -1384,24 +1424,27 @@ index bc0b47f..9c28902 100644
                  for v in vars(t).values():
                      add(v)
              elif isinstance(t, (list, tuple)):
-@@ -240,18 +253,31 @@ class Weights:
+@@ -255,18 +271,34 @@ class Weights:
          return total
  
  
--def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
--    """Read one of two ranks from a full checkpoint or rank folder, including MTP and its half of the vocabulary head."""
+-def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool = True) -> Weights:
+-    """One of two ranks from a checkpoint or rank folder, MTP included unless ``mtp`` is False, with its head half."""
 +def packed_residency(cfg: Config, *, load_mtp: bool = True):
 +    """Quant-aware full packed TP1 transform; scratch is separately budgeted."""
 +    return resident_transform(cfg, load_mtp=load_mtp)
 +
 +
 +def load(model_dir: str | Path, *, rank: int, device: str = "cuda", world: int = 2,
-+         load_mtp: bool = True) -> Weights:
-+    """Load full packed TP1 or the legacy rank-split TP2 path; MTP is explicit."""
++         load_mtp: bool = True, mtp: bool | None = None) -> Weights:
++    """Load full packed TP1 or the legacy rank-split TP2 path; MTP is explicit (``mtp`` is upstream's name for it)."""
  
      from .split import RankReader
  
 -    world = 2
++    if mtp is not None:
++        load_mtp = bool(mtp)
++
 +    if world not in (1, 2) or not 0 <= rank < world:
 +        raise ValueError("GLM requires world=1/rank=0 or world=2/rank=0..1")
      cfg = Config.read(model_dir)
@@ -1420,7 +1463,7 @@ index bc0b47f..9c28902 100644
      HL = cfg.heads // world
      LL = cfg.lin_heads // world
  
-@@ -264,10 +290,26 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -279,10 +311,26 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
      def trip(name: str) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
          return (as_i32(t(name + ".weight")), t(name + ".scales"), t(name + ".biases"))
  
@@ -1449,7 +1492,7 @@ index bc0b47f..9c28902 100644
          if exl3:
              return stack_b16([t(n + ".weight") for n in names])
          return stack_q4([trip(n) for n in names])
-@@ -278,8 +320,14 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -293,8 +341,14 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
  
      def kda(i: int) -> KDAW:
          p = f"layers.{i}.self_attn."
@@ -1466,7 +1509,7 @@ index bc0b47f..9c28902 100644
          return KDAW(proj, q4(p + "f_b_proj"), q4(p + "g_b_proj"), conv, t(p + "A_log", torch.float32).contiguous(),
                      t(p + "dt_bias", torch.float32).contiguous(), t(p + "o_norm.weight"), q4(p + "o_proj"), LL)
  
-@@ -288,7 +336,15 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -303,7 +357,15 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
          proj = stack([p + "q_a_proj", p + "kv_a_proj_with_mqa"])
          rows = torch.arange(HL * 512, device=dev).view(HL, 512)
          krows, vrows = rows[:, :cfg.qk_dim].reshape(-1), rows[:, cfg.qk_dim:].reshape(-1)
@@ -1483,7 +1526,7 @@ index bc0b47f..9c28902 100644
              w = t(p + "kv_b_proj.weight")
              kv_k, kv_v = make_b16(w[krows]), make_b16(w[vrows])
              full_k, full_v = (lambda: w[krows].float()), (lambda: w[vrows].float())
-@@ -298,6 +354,8 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -313,6 +375,8 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
              kv_v = make_q4(w[vrows], s[vrows], b[vrows])
          if not latent.ENABLED:
              absorb = None
@@ -1492,7 +1535,7 @@ index bc0b47f..9c28902 100644
          elif exl3:
              absorb = latent.AbsorbW.from_rows(full_k(), full_v(), HL)
          elif cfg.group_size == 64:        # the checkpoint's own 4-bit rows, read as they are stored
-@@ -307,8 +365,8 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -322,8 +386,8 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
                                                latent.dequant_mlx4(w[vrows], s[vrows], b[vrows], cfg.group_size), HL)
          ix = IndexW(stack([p + "indexer.wk", p + "indexer.weights_proj"]), q4(p + "indexer.wq_b"),
                      t(p + "indexer.k_norm.weight"), t(p + "indexer.k_norm.bias"),
@@ -1503,7 +1546,16 @@ index bc0b47f..9c28902 100644
          return DSAW(proj, t(p + "q_a_layernorm.weight"), t(p + "kv_a_layernorm.weight"), q4(p + "q_b_proj"),
                      kv_k, kv_v, q4(p + "o_proj"), HL, ix, absorb)
  
-@@ -356,8 +414,23 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -334,7 +398,7 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
+     def expert_names(i: int) -> list[str]:
+         """Layer ``i``'s expert tensors in the order ``moe`` reads them (none for a dense layer; ``cfg.layers``: MTP)."""
+ 
+-        mtp_layer = i == cfg.layers and cfg.mtp_layers and mtp
++        mtp_layer = i == cfg.layers and cfg.mtp_layers and load_mtp
+         if not mtp_layer and (i >= cfg.layers or cfg.mlp_kinds[i] != "moe"):
+             return []
+         p, parts = PREFIX + f"layers.{i}.mlp.", ("trellis", "suh", "svh") if exl3 else ("weight", "scales", "biases")
+@@ -372,8 +436,23 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
  
      def moe(i: int) -> MoEW:
          p = f"layers.{i}.mlp."
@@ -1528,7 +1580,7 @@ index bc0b47f..9c28902 100644
          if exl3:
              return MoEW(router, bias, moe_exl3(p), mlp(p + "shared_experts."))
          parts = {}
-@@ -397,24 +470,31 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+@@ -413,36 +492,44 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", mtp: bool =
          else:
              lw.moe = moe(i)
          if i % 8 == 7:                            # each release waits for the device; a layer leaves few temporaries
@@ -1570,7 +1622,11 @@ index bc0b47f..9c28902 100644
          else:
              hw, hs, hb = (rd.get("lm_head." + x) for x in ("weight", "scales", "biases"))
              head = make_q4(as_i32(hw[rank * vl:(rank + 1) * vl]).to(dev), hs[rank * vl:(rank + 1) * vl].to(dev),
-@@ -425,8 +505,9 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda") -> Weights:
+                            hb[rank * vl:(rank + 1) * vl].to(dev))
+         mtpw = None
+-        if cfg.mtp_layers and mtp:
++        if cfg.mtp_layers and load_mtp:
+             i = cfg.layers
              mtpw = MTPW(t(f"layers.{i}.enorm.weight"), t(f"layers.{i}.hnorm.weight"), q4(f"layers.{i}.eh_proj"),
                          t(f"layers.{i}.shared_head.norm.weight"), layer(i, plain=True))
          w = Weights(cfg, embed, built, t("norm.weight"), head, mtpw, rank, world, dev, draft_head=draft_head)
@@ -1584,10 +1640,10 @@ index bc0b47f..9c28902 100644
      return w
 diff --git a/tests/cpu/test_glm_tp1_contracts.py b/tests/cpu/test_glm_tp1_contracts.py
 new file mode 100644
-index 0000000..d61ddcf
+index 0000000..1311dd5
 --- /dev/null
 +++ b/tests/cpu/test_glm_tp1_contracts.py
-@@ -0,0 +1,482 @@
+@@ -0,0 +1,493 @@
 +"""CPU contract regressions. Real source definitions, mocked CUDA/I/O seams only.
 +
 +Run: .venv-tp1-cpu/bin/python -m unittest discover -s tests/cpu -p test_glm_tp1_contracts.py -v
@@ -1641,7 +1697,7 @@ index 0000000..d61ddcf
 +    """Only hardware/import boundaries replaced; production constructor runs intact."""
 +    def __init__(self, root, world=1, mtp=True):
 +        self.calls = []
-+        self.cfg = NS(dense_limit=2051, eos=(7,), quant="mlx", layers=45)
++        self.cfg = NS(dense_limit=2051, eos=(7,), quant="mlx", layers=45, mtp_layers=1)
 +        self.w = NS(cfg=self.cfg, mtp=object() if mtp else None, comm=None, world=world)
 +        self.text = {"num_hidden_layers": 45, "num_nextn_predict_layers": 1, "_quantization": {}}
 +        self.modules = {}
@@ -1651,10 +1707,11 @@ index 0000000..d61ddcf
 +        torch = self.modules["torch"]
 +        torch.cuda = NS(set_device=lambda n: self.calls.append(("device", n)))
 +        self.modules["tensorfold.families.glm5_next.cuda"].LATENT = True
-+        self.comm = NS(barrier=lambda: self.calls.append(("barrier",)), all_gather=lambda *_: None)
++        self.comm = NS(barrier=lambda: self.calls.append(("barrier",)), all_gather=lambda *_: None,
++                       ready=lambda *_, **__: None)
 +        def nccl(rank, world, master, port):
 +            self.calls.append(("nccl", rank, world)); return self.comm
-+        self.add("tensorfold.cuda.comm", NCCL=nccl)
++        self.add("tensorfold.cuda.comm", NCCL=nccl, open_comm=nccl)
 +        def load(path, **kwargs):
 +            self.calls.append(("load", kwargs))
 +            if not kwargs.get("load_mtp", True):
@@ -1670,7 +1727,8 @@ index 0000000..d61ddcf
 +        def geometry(text, w, reserve, **kwargs):
 +            self.calls.append(("geometry", w, text.get("num_nextn_predict_layers"), kwargs)); return NS()
 +        self.add("tensorfold.cuda.geometry", PREFILL_ROWS=2048, mla_geometry=geometry,
-+                 draft_geometry=geometry, split_weights=scope["split_weights"])
++                 draft_geometry=geometry, dflash2_geometry=geometry, dflash2_weights=lambda d, w: NS(),
++                 split_weights=scope["split_weights"])
 +        def admit(path, requested, explicit, torch, geometry, transform, **kwargs):
 +            self.calls.append(("admit", kwargs))
 +            geometry(self.text)
@@ -1924,12 +1982,20 @@ index 0000000..d61ddcf
 +                family.cuda_engine("unused", tp=tp, rank=rank, master=master)
 +
 +
++def _cli_args():
++    """The parser module ``cli.build_parser`` delegates to since 0.6."""
++    sys.path.insert(0, str(ROOT / "src"))
++    from tensorfold import cli_args
++    return cli_args
++
++
 +class CliContracts(unittest.TestCase):
 +    def test_parser_exposes_explicit_modes_without_changing_defaults(self):
 +        import argparse
 +        scope = definitions(ROOT / "src/tensorfold/cli.py", {"build_parser"},
 +                            {"argparse": argparse, "Path": Path, "__version__": "probe", "MEMORY_FRACTION": 0.8,
-+                             **{name: lambda: None for name in ("cmd_serve", "cmd_pull", "cmd_models", "cmd_info", "cmd_update")}})
++                             "cli_args": _cli_args(),
++                             **{name: lambda: None for name in ("cmd_serve", "cmd_pull", "cmd_models", "cmd_info", "cmd_update", "cmd_plan")}})
 +        parser = scope["build_parser"]()
 +        args = parser.parse_args(["serve", "unused", "--target-only", "--eager"])
 +        self.assertTrue(args.target_only and args.eager)
@@ -1946,7 +2012,8 @@ index 0000000..d61ddcf
 +        env = {"argparse": argparse, "Path": Path, "__version__": "probe", "MEMORY_FRACTION": 0.8,
 +               "time": engine.time, "_vision_options": lambda args: {},
 +               "_drafter": lambda *args: self.fail("auto drafter resolved in target-only"),
-+               **{name: lambda: None for name in ("cmd_serve", "cmd_pull", "cmd_models", "cmd_info", "cmd_update")}}
++               "cli_args": _cli_args(),
++                             **{name: lambda: None for name in ("cmd_serve", "cmd_pull", "cmd_models", "cmd_info", "cmd_update", "cmd_plan")}}
 +        scope = definitions(ROOT / "src/tensorfold/cli.py", {"build_parser", "_serve_cuda", "_glm_modes"}, env)
 +        args = scope["build_parser"]().parse_args(["serve", "unused", "--target-only", "--eager"])
 +        sys.path.insert(0, str(ROOT / "src"))
@@ -2567,7 +2634,7 @@ index 0000000..f7271b1
 +    assert partial.calls[0][1][0] is x and finish.calls[0][1][0] is x
 +    assert mean.calls[0][1][0] is x and mean.calls[0][1][1] is norm
 diff --git a/tests/cuda/test_glm_split_and_policy.py b/tests/cuda/test_glm_split_and_policy.py
-index 5fe27c5..8947216 100644
+index ec98311..845e11f 100644
 --- a/tests/cuda/test_glm_split_and_policy.py
 +++ b/tests/cuda/test_glm_split_and_policy.py
 @@ -197,13 +197,18 @@ def test_policies_and_the_request_header():
@@ -2592,8 +2659,8 @@ index 5fe27c5..8947216 100644
      with pytest.raises(ValueError, match="--master"):
          glm5_next.cuda_engine(tmp_path, tp=2, rank=0, master="")
  
-@@ -245,7 +250,7 @@ def test_requests_past_the_context_get_a_400_before_streaming(tmp_path):
-     assert "--context 13" in app.check({**chat, "max_tokens": 3})
+@@ -269,7 +274,7 @@ def test_requests_past_the_context_get_a_400_before_streaming(tmp_path):
+                     conn.close()
  
  
 -def test_check_accepts_mlx_4bit_and_mias_exl3_only(tmp_path):
@@ -2601,7 +2668,7 @@ index 5fe27c5..8947216 100644
      from tensorfold.families import glm5_next
  
      assert glm5_next.QUANT_METHODS == {"mlx": ("mlx",), "cuda": ("mlx", "exl3")}
-@@ -254,6 +259,10 @@ def test_check_accepts_mlx_4bit_and_mias_exl3_only(tmp_path):
+@@ -278,6 +283,10 @@ def test_check_accepts_mlx_4bit_and_mias_exl3_only(tmp_path):
          "mlx8": ({"quantization": {"bits": 8, "group_size": 64}}, False),
          "exl3": ({"quantization_config": {"quant_method": "exl3", "bits": 4, "codebook": "mcg",
                                            "scope": "glm53_routed_experts_only"}}, True),
