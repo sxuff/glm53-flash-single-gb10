@@ -12,9 +12,29 @@ TABBYAPI_COMMIT = "f07131cd8fe34e449fe87cdd3a066b52b96d3cac"
 ENGINE_VERSION = "1.5.2"
 ENGINE_COMMIT = "12414d0af7b3beeabdda5990f6b554b996fa1416"
 IMAGE_SHA = "sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee"
+TENSORFOLD_COMMIT = "9cd52ab4daba68ddd09be89be8f23ad43175e821"
 ROLLBACK_IMAGE_SHA = "sha256:f3843891b30c4329bb502b959a18a5182cc8fc18a8f7c74f811c526f55696029"
 TARGET_REVISION = "2975ab414d30340466d8c51533c6e91f0cca64c1"
 DFLASH_RUNTIME = "d94f44e79aa219d8057e8de21f95360a187ebf41"
+
+readme = (ROOT / "README.md").read_text()
+for value in (CHECKPOINT_REVISION, TENSORFOLD_COMMIT, IMAGE_SHA, "32.32", "11.63", "2.78×", "28.64"):
+    assert value in readme, value
+for name in ("01-exl3-single-gpu-port.patch", "02-serving.patch"):
+    assert hashlib.sha256((ROOT / "patches" / name).read_bytes()).hexdigest() in readme, name
+fixed = json.loads((ROOT / "results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json").read_text())["pooled_matched400"]["greedy"]
+assert round(fixed["tensorfold_mtp"]["pooled_decode_tok_s"], 2) == 32.32
+assert round(fixed["tabbyapi_mtp"]["pooled_decode_tok_s"], 2) == 28.64
+depth = json.loads((ROOT / "results/glm53-tensorfold-depth-check-20261004.json").read_text())
+assert depth["status"] == "complete" and len(depth["depths"]) == 6
+for row in depth["depths"]:
+    assert row["needles_correct"] == row["needles_total"] == 5
+    assert f"| {row['prompt_tokens']:,} | {row['decode_tok_s_weighted']:.1f} tok/s | 5 / 5 |" in readme, row["prompt_tokens"]
+for name in ("glm53-tensorfold-cache-equivalence-20261004.json", "glm53-tensorfold-cache-equivalence-long-replies-20261004.json"):
+    cases = json.loads((ROOT / "results" / name).read_text())
+    cases = cases["cases"] if isinstance(cases, dict) else cases
+    assert cases and all(case["resumed_equals_fresh"] for case in cases), name
+assert (ROOT / "assets/glm53-tensorfold-result-card.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 manifest = json.loads((ROOT / "manifests/glm53-exl3-k2.json").read_text())
 assert manifest["revision"] == MODEL_REVISION
@@ -50,7 +70,8 @@ assert abs(comparison["previous"]["weighted_server_decode_tokens_per_second"] - 
 assert abs(comparison["delta"]["weighted_server_decode_ratio"] - 1.8136501076658837) < 1e-12
 assert comparison["comparison_type"] == "deployment-to-deployment"
 
-readme = (ROOT / "README.md").read_text()
+exl_root = ROOT / "exllamav3"
+readme = (exl_root / "README.md").read_text()
 for value in (
     CHECKPOINT_REVISION, TABBYAPI_COMMIT, ENGINE_VERSION, ENGINE_COMMIT, IMAGE_SHA,
     "29.00", "+3.1%", "356.34", "+9.1%", "238.99", "−8.3%",
@@ -60,7 +81,6 @@ assert "29.97 tok/s** headline below belongs to an earlier deployment" in readme
 for historical in ("96.97%", "26.1 GB", "exllamav3 1.4.9"):
     assert historical not in readme, historical
 
-exl_root = ROOT / "exllamav3"
 quick = json.loads((exl_root / "results/glm53-exl152-quick-ab-20260927.json").read_text())
 checks = json.loads((exl_root / "results/glm53-exl152-functional-canaries-20260927.json").read_text())
 card = json.loads((exl_root / "results/glm53-exl152-card-asset-20260927.json").read_text())
@@ -97,8 +117,7 @@ for pinned in (IMAGE_SHA, ROLLBACK_IMAGE_SHA, ENGINE_VERSION):
     assert pinned in start_script
 assert ENGINE_COMMIT in build_script
 
-# Archived lanes document their own pins and figures in their own trees. The current
-# README describes the deployment that replaced them.
+# Archived lanes document their own pins and figures in their own trees.
 archived = "\n".join(
     (ROOT / relative).read_text()
     for relative in (
@@ -134,7 +153,7 @@ for relative in (
     assert not (ROOT / relative).exists(), relative
 
 public_files = [ROOT / "README.md", ROOT / "NOTICE.md"]
-for directory in (ROOT / "assets", ROOT / "gguf", ROOT / "exllamav3"):
+for directory in (ROOT / "assets", ROOT / "gguf", ROOT / "exllamav3", ROOT / "patches", ROOT / "results"):
     public_files.extend(
         path for path in directory.rglob("*")
         if path.is_file() and "__pycache__" not in path.parts and "runtime" not in path.parts and "local" not in path.parts

@@ -1,0 +1,349 @@
+{
+  "status": "complete",
+  "url": "http://127.0.0.1:8002",
+  "contract": "greedy; needle turn thinking on, 4096 cap, fresh prefill; decode turns thinking on, landing guard off, 512 tokens (reasoning included), 3 identical runs resumed from the needle prompt state",
+  "depths": [
+    {
+      "depth": "short",
+      "prompt_tokens": 123,
+      "fresh_prefill_s": 0.526,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 233.8,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 13,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 32.864,
+      "needle_answer": "{\"1\": \"212446\", \"2\": \"317175\", \"3\": \"421904\", \"4\": \"526633\", \"5\": \"631362\"}",
+      "decode_prompt_tokens": 195,
+      "decode_cached": [
+        123,
+        123,
+        123
+      ],
+      "decode_prefill_s": [
+        0.382,
+        0.389,
+        0.379
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        32,
+        32,
+        32
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        30.037,
+        30.025,
+        30.002
+      ],
+      "decode_tok_s_weighted": 30.021,
+      "draft_acceptance": 0.6721,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 37,
+        "mtp": 2106,
+        "sparse_mtp": 37,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 23089700864,
+      "time_ns": 1791120988223149367
+    },
+    {
+      "depth": "8k",
+      "prompt_tokens": 7965,
+      "fresh_prefill_s": 34.03,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 234.1,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 20,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 29.014,
+      "needle_answer": "{\"1\": \"220163\", \"2\": \"324892\", \"3\": \"429621\", \"4\": \"534350\", \"5\": \"639079\"}",
+      "decode_prompt_tokens": 8036,
+      "decode_cached": [
+        7965,
+        7965,
+        7965
+      ],
+      "decode_prefill_s": [
+        0.636,
+        0.39,
+        0.41
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        30.209,
+        30.248,
+        30.219
+      ],
+      "decode_tok_s_weighted": 30.225,
+      "draft_acceptance": 0.723,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 965,
+        "mtp": 2106,
+        "sparse_mtp": 962,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 23042416640,
+      "time_ns": 1791121076600513941
+    },
+    {
+      "depth": "32k",
+      "prompt_tokens": 32078,
+      "fresh_prefill_s": 133.596,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 240.1,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 67,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 33.126,
+      "needle_answer": "{\"1\": \"227880\", \"2\": \"332609\", \"3\": \"437338\", \"4\": \"542067\", \"5\": \"646796\"}",
+      "decode_prompt_tokens": 32152,
+      "decode_cached": [
+        32078,
+        32078,
+        32078
+      ],
+      "decode_prefill_s": [
+        0.397,
+        0.401,
+        0.404
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        73,
+        73,
+        73
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        28.981,
+        29.024,
+        29.004
+      ],
+      "decode_tok_s_weighted": 29.003,
+      "draft_acceptance": 0.6699,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 1941,
+        "mtp": 2106,
+        "sparse_mtp": 1938,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 22988845056,
+      "time_ns": 1791121267806639775
+    },
+    {
+      "depth": "85k",
+      "prompt_tokens": 86068,
+      "fresh_prefill_s": 350.825,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 245.3,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 75,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 31.504,
+      "needle_answer": "{\"1\": \"235597\", \"2\": \"340326\", \"3\": \"445055\", \"4\": \"549784\", \"5\": \"654513\"}",
+      "decode_prompt_tokens": 86140,
+      "decode_cached": [
+        86068,
+        86068,
+        86068
+      ],
+      "decode_prefill_s": [
+        0.398,
+        0.398,
+        0.402
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        43,
+        43,
+        43
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        28.475,
+        28.538,
+        28.521
+      ],
+      "decode_tok_s_weighted": 28.511,
+      "draft_acceptance": 0.6944,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 2909,
+        "mtp": 2106,
+        "sparse_mtp": 2903,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 22996602880,
+      "time_ns": 1791121677712420926
+    },
+    {
+      "depth": "128k",
+      "prompt_tokens": 130502,
+      "fresh_prefill_s": 530.831,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 245.8,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 76,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 31.985,
+      "needle_answer": "{\"1\": \"243314\", \"2\": \"348043\", \"3\": \"452772\", \"4\": \"557501\", \"5\": \"662230\"}",
+      "decode_prompt_tokens": 130575,
+      "decode_cached": [
+        130502,
+        130502,
+        130502
+      ],
+      "decode_prefill_s": [
+        0.406,
+        0.403,
+        0.404
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        30.648,
+        30.588,
+        30.637
+      ],
+      "decode_tok_s_weighted": 30.624,
+      "draft_acceptance": 0.8315,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 3808,
+        "mtp": 2106,
+        "sparse_mtp": 3802,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 23050846208,
+      "time_ns": 1791122264075133328
+    },
+    {
+      "depth": "250k",
+      "prompt_tokens": 255716,
+      "fresh_prefill_s": 1047.159,
+      "fresh_cached": 0,
+      "fresh_prefill_tok_s": 244.2,
+      "needles_correct": 5,
+      "needles_total": 5,
+      "needle_finish": "stop",
+      "needle_reasoning_tokens": 87,
+      "needle_trigger": null,
+      "needle_decode_tok_s": 30.604,
+      "needle_answer": "{\"1\": 251031, \"2\": 355760, \"3\": 460489, \"4\": 565218, \"5\": 669947}",
+      "decode_prompt_tokens": 255789,
+      "decode_cached": [
+        255716,
+        255716,
+        255716
+      ],
+      "decode_prefill_s": [
+        0.414,
+        0.414,
+        0.418
+      ],
+      "decode_completion_tokens": [
+        512,
+        512,
+        512
+      ],
+      "decode_reasoning_tokens": [
+        47,
+        47,
+        47
+      ],
+      "decode_finish": [
+        "length",
+        "length",
+        "length"
+      ],
+      "decode_tok_s": [
+        26.239,
+        26.242,
+        26.233
+      ],
+      "decode_tok_s_weighted": 26.238,
+      "draft_acceptance": 0.6326,
+      "sparse_graph_replays": {
+        "main": 2109,
+        "sparse": 4815,
+        "mtp": 2106,
+        "sparse_mtp": 4809,
+        "eager": 2
+      },
+      "peak_reserved": 91278540800,
+      "host_available_after": 22930141184,
+      "time_ns": 1791123376211955897
+    }
+  ]
+}

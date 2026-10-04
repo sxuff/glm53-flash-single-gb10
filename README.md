@@ -1,65 +1,79 @@
 # GLM-5.3 Flash EXL3 on one NVIDIA GB10
 
-A pinned TabbyAPI recipe for GLM-5.3 Flash EXL3 2.05 bpw with exllamav3 1.5.2 and MTP n=1 on one NVIDIA GB10. The serving profile configures 262,144 tokens and vision. These settings are not a claim that a full-depth prompt was benchmarked.
+GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.5.0 behind an OpenAI-compatible endpoint: 262,144-token context, MTP n=1, prompt state reused between turns.
 
-## Measured quick screen
+![GLM-5.3 Flash on one NVIDIA GB10: 32.32 tok/s with TensorFold](assets/glm53-tensorfold-result-card.png)
 
-Same checkpoint, TabbyAPI commit, FP16 cache, MTP n=1 and 262K + vision configuration on one GB10. Deltas use a matched prior engine run, **not** the older four-prompt deployment benchmark.
+## Measured
 
-| Metric | exllamav3 1.5.2 | Change vs matched run |
-|---|---:|---:|
-| Mean decode, prose and code | **29.00 tok/s** | **+3.1%** |
-| Prefill, 84,865-token prompt | **356.34 tok/s** | **+9.1%** |
-| Time to first token, same prompt | **238.99 s** | **−8.3%** |
-| Functional canaries | **4/4** | Two arithmetic, one forced tool call, one image |
-| Candidate service cgroup swap | **0 B** | During observed loads and requests |
+- **32.32 tok/s** decode on four fixed prompts, 400 tokens each, temperature 0. The first deployment here measured 11.63 tok/s on the same prompts (**2.78×**), and ExLlamaV3 1.5.2 measured 28.64 tok/s (+12.9%).
+- **26 to 31 tok/s** from a 123-token prompt to a 255,716-token prompt.
+- **2.1 s** to the first token of the next turn on an 11,272-token conversation, against 47.6 s when the prompt is filled again. The 1,321-token reply was identical either way.
 
-Decode used 256 output tokens at temperature 0, one warm-up and **one measured request per prompt**. The long prompt was measured once, with 24 output tokens. This is a quick screen, not a variance estimate, full-depth 262K test, or full quality sweep. Output hashes differed across arms. [Measurements and protocol](exllamav3/results/glm53-exl152-quick-ab-20260927.json) · [functional checks](exllamav3/results/glm53-exl152-functional-canaries-20260927.json) · [card hash](exllamav3/results/glm53-exl152-card-asset-20260927.json).
+| Prompt tokens | Decode | Planted codes found |
+|---:|---:|---:|
+| 123 | 30.0 tok/s | 5 / 5 |
+| 7,965 | 30.2 tok/s | 5 / 5 |
+| 32,078 | 29.0 tok/s | 5 / 5 |
+| 86,068 | 28.5 tok/s | 5 / 5 |
+| 130,502 | 30.6 tok/s | 5 / 5 |
+| 255,716 | 26.2 tok/s | 5 / 5 |
 
-## Deployment card
+Each row is one conversation: a document with five planted six-digit codes, then three 512-token turns at temperature 0.
 
-The full-suite **29.97 tok/s** headline below belongs to an earlier deployment. Only the separate quick-screen section reports 1.5.2 measurements.
+Receipts: [decode against ExLlamaV3](results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json) · [prompt sizes](results/glm53-tensorfold-depth-check-20261004.json) · [prompt-state reuse](results/glm53-tensorfold-cache-equivalence-20261004.json) and [long replies](results/glm53-tensorfold-cache-equivalence-long-replies-20261004.json) · [first deployment](exllamav3/results/glm53-phase0-2026-09-22.md)
 
-![GLM-5.3 Flash EXL3 deployment history and 1.5.2 quick-screen results on one NVIDIA GB10](assets/glm53-exllamav3-tabbyapi-result-card.png)
+## Recipe
 
-## Pinned recipe
+- Checkpoint: `turboderp/GLM-5.3-Flash-exl3`, revision `51058cd551c7e570d87bd32a4adee720edce2349`, 2.05 bpw
+- TensorFold: `https://github.com/ashhart/TensorFold`, tag `v0.5.0`, commit `9cd52ab4daba68ddd09be89be8f23ad43175e821`
+- Container image: `sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee`, built by [`exllamav3/scripts/build-exl152-image.sh`](exllamav3/scripts/build-exl152-image.sh)
+- Environment: `EXL3_INT8_GEMV=2`
 
-- Checkpoint: `turboderp/GLM-5.3-Flash-exl3`, revision `51058cd551c7e570d87bd32a4adee720edce2349`, 2.05 bpw, 12 shards
-- TabbyAPI: `f07131cd8fe34e449fe87cdd3a066b52b96d3cac`
-- exllamav3: `1.5.2`, source commit `12414d0af7b3beeabdda5990f6b554b996fa1416`
-- Tested image: `sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee`
-- Profile: 262,144-token configured context, FP16 cache, 256-token chunks, one slot, vision on, MTP n=1
-
-Model weights and runtime binaries are not stored here. The build requires a retained local base image; it is not a public registry pull. [`build-exl152-image.sh`](exllamav3/scripts/build-exl152-image.sh) verifies the base and source pins. If a fresh build has a different image ID, revalidate it before serving rather than silently substituting it.
-
-### Serve
+Two patches, applied in order from a clone of this repository:
 
 ```bash
-cd exllamav3
-./scripts/build-exl152-image.sh
-# Or verify the already tested local image without recompiling:
-# CHECK_ONLY=1 ./scripts/build-exl152-image.sh
-MODEL_DIR="$HOME/models/glm53-flash-exl3-2.05bpw" ./scripts/start-tabbyapi.sh primary
+git clone https://github.com/ashhart/TensorFold
+cd TensorFold
+git checkout 9cd52ab4daba68ddd09be89be8f23ad43175e821
+git apply ../patches/01-exl3-single-gpu-port.patch
+git apply ../patches/02-serving.patch
 ```
 
-The launcher checks the image ID and engine version, then runs the page-cache hint and memory gate before binding `127.0.0.1:8002`. Stop other model services before switching. This repository does not claim GLM is the currently live host endpoint.
+| Patch | SHA-256 | What it adds |
+|---|---|---|
+| [`01-exl3-single-gpu-port.patch`](patches/01-exl3-single-gpu-port.patch) | `a7c809f8f41c7bb6789b12b5242194819353d2e382f7fe1acaf268c2369739b3` | Loads the packed EXL3 checkpoint on one GPU |
+| [`02-serving.patch`](patches/02-serving.patch) | `d30cce966c26954c95951626d32d970f7bc4cb276dd4afbc26795fdce20a6f5c` | The server, the thinking guard, prompt-state reuse, stream keep-alive, and their tests |
 
-For a user service, see [`exllamav3/systemd/glm53-tabbyapi-primary.service`](exllamav3/systemd/glm53-tabbyapi-primary.service). [Configuration and operations detail](exllamav3/README.md).
+`serving/server.py` runs inside the container and `serving/supervisor.py` starts it. Both still import a memory guard, a loader and a service controller from the host they were written on, and those are not published yet. Until they are, the patches give you the serving code but not a launcher.
 
-### Verify a running GLM endpoint
+## Serving profile
 
-```bash
-curl -s localhost:8002/v1/models
-curl -s localhost:8002/v1/chat/completions -H 'Content-Type: application/json' \
-  -d '{"model":"glm53","messages":[{"role":"user","content":"What is 9 times 6? Reply with only the integer."}],"temperature":0,"max_tokens":64,"reasoning_budget_tokens":0}'
-# -> "54"
-```
+- Prompts up to 257,920 tokens, replies up to 16,384.
+- Defaults: temperature 0.3, top-p 0.95, min-p 0.05, reasoning effort high, and a new seed for every request that does not send one.
+- Thinking is capped at 3,000 tokens. At the cap the server writes a short closing sentence and the close tag, and the answer is then sampled normally. A run of repeated filler ("Hmm, hmm.") ends thinking the same way.
+- The next turn of a conversation resumes from the stored prompt state. `"prefix_cache": false` on a request fills the prompt again.
+- A streamed request gets an empty chunk every 15 seconds while it waits or fills its prompt. When the client disconnects, the fill stops.
+- Extra request fields: `thinking_budget`, `thinking_loop`, `prefix_cache`, `seed`, `response_format: {"type": "json_object"}`.
 
-Reasoning effort defaults to **High** through `model.template_vars_default`. Per-request overrides use the flat `reasoning_effort` field (`low`, `high`, `max`), `template_vars` / `chat_template_kwargs`, or an OpenRouter-style `reasoning.effort` object. `reasoning_budget_tokens: 0` disables thinking for a request.
+## Limits
 
-## Archived experiments
+- **A new prompt fills at about 245 tok/s**, against 356 tok/s for ExLlamaV3. A fresh 86K-token prompt waits 5.8 minutes for its first token and a 256K one 17 minutes.
+- **One request at a time, one conversation stored.** A second conversation replaces the first one's prompt state, so parallel agents fill their whole prompt on every turn.
+- **Recall at 2.05 bpw is unreliable.** The model can state a formula wrongly and then keep re-deriving it. The thinking cap bounds that; it does not make the answer right.
+- **`max_tokens` below 1,053 is refused** while the thinking guard is on. Send `"thinking_loop": {"enabled": false}` with small caps.
+- **A turn that switches thinking off** fills its whole prompt again.
+- At depth, only retrieval of planted codes was checked. Each prompt size was run once.
 
-Older deployment receipts remain under [`exllamav3/results/`](exllamav3/results/) for audit and rollback. The `gguf/` and root-level `scripts/`, `systemd/`, `manifests/` and `results/` trees are superseded lanes, not the default recipe.
+## Checks
+
+`serving/cpu_json.py`, `serving/cpu_prepare.py` and the landing suites under `tests/` run the request handling, prompt fill and state reuse on CPU with the checkpoint's tokenizer: 31, 12 and 146 tests pass on the patched tree. `serving/cache_equivalence.py` and `serving/depth_check.py` are the two live checks behind the numbers above.
+
+## Earlier lanes
+
+- [`exllamav3/`](exllamav3/README.md): TabbyAPI with exllamav3 1.5.2 on the same checkpoint. It has a packaged launcher and fills prompts faster.
+- [`gguf/`](gguf/README.md): llama.cpp with a DFlash2 drafter.
+- `scripts/`, `systemd/`, `manifests/` and the three older files in `results/`: the first EXL3-K2 recipe.
 
 ## License
 

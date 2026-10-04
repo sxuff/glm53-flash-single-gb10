@@ -1,0 +1,78 @@
+[
+  {
+    "case": "across_dense_limit_long_reply",
+    "prompts": [
+      1195,
+      2645
+    ],
+    "cached": [
+      1195,
+      1195,
+      0
+    ],
+    "prefill_s": [
+      6.313,
+      6.33,
+      11.25
+    ],
+    "reply_tokens": [
+      1076,
+      1076,
+      1076
+    ],
+    "finish": [
+      "stop",
+      "stop",
+      "stop"
+    ],
+    "triggers": [
+      null,
+      null,
+      null
+    ],
+    "resumed_equals_fresh": true,
+    "resent_equals_fresh": true,
+    "first_difference": [
+      null,
+      null
+    ]
+  },
+  {
+    "case": "long_context_long_reply",
+    "prompts": [
+      10797,
+      11272
+    ],
+    "cached": [
+      10797,
+      10797,
+      0
+    ],
+    "prefill_s": [
+      2.129,
+      2.142,
+      47.591
+    ],
+    "reply_tokens": [
+      1321,
+      1321,
+      1321
+    ],
+    "finish": [
+      "stop",
+      "stop",
+      "stop"
+    ],
+    "triggers": [
+      null,
+      null,
+      null
+    ],
+    "resumed_equals_fresh": true,
+    "resent_equals_fresh": true,
+    "first_difference": [
+      null,
+      null
+    ]
+  }
+]
