@@ -57,6 +57,19 @@ curl -s localhost:8002/v1/chat/completions -H 'Content-Type: application/json' \
 
 Reasoning effort defaults to **High** through `model.template_vars_default`. Per-request overrides use the flat `reasoning_effort` field (`low`, `high`, `max`), `template_vars` / `chat_template_kwargs`, or an OpenRouter-style `reasoning.effort` object. `reasoning_budget_tokens: 0` disables thinking for a request.
 
+## TensorFold lane (experimental)
+
+The same checkpoint on TensorFold 0.5.0 with a single-GPU packed-EXL3 port. Measured on one GB10:
+
+- **32.03 tok/s** pooled decode against 28.56 tok/s for exllamav3 1.5.2 on four fixed workloads (+12.1%).
+- **26 to 31 tok/s** from a 123-token prompt to a 255,716-token prompt, with five of five planted codes retrieved at every depth.
+- **2.1 s** to the first token of the next turn on an 11,272-token conversation, 47.6 s without prompt-state reuse.
+- Prompt fill is slower: about 245 tok/s against 356 tok/s here.
+
+![GLM-5.3 Flash on TensorFold, one NVIDIA GB10](assets/glm53-tensorfold-result-card.png)
+
+The source is published as two patches that reproduce the served tree; a launcher for a clean machine is not packaged yet. Contracts, limits and receipts: [`tensorfold/README.md`](tensorfold/README.md).
+
 ## Archived experiments
 
 Older deployment receipts remain under [`exllamav3/results/`](exllamav3/results/) for audit and rollback. The `gguf/` and root-level `scripts/`, `systemd/`, `manifests/` and `results/` trees are superseded lanes, not the default recipe.

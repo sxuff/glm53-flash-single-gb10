@@ -1,0 +1,1496 @@
+{
+  "status": "completed_with_unsupported_cells",
+  "operational_complete": true,
+  "source_seal_unchanged": true,
+  "denominator": {
+    "primary_per_arm": 62,
+    "warmup_per_arm": 10
+  },
+  "arms": {
+    "tabbyapi_mtp": {
+      "validation": {
+        "complete": true,
+        "planned": 72,
+        "observed": 72,
+        "missing": [],
+        "duplicates": 0
+      },
+      "phases": {
+        "capability": {
+          "planned": 2,
+          "observed": 2,
+          "passed": 2,
+          "unsupported": 0
+        },
+        "long84865": {
+          "planned": 1,
+          "observed": 1,
+          "passed": 1,
+          "unsupported": 0
+        },
+        "loop": {
+          "planned": 3,
+          "observed": 3,
+          "passed": 3,
+          "unsupported": 0
+        },
+        "matched400": {
+          "planned": 24,
+          "observed": 24,
+          "passed": 24,
+          "unsupported": 0
+        },
+        "panel_high": {
+          "planned": 15,
+          "observed": 15,
+          "passed": 15,
+          "unsupported": 0
+        },
+        "panel_zero": {
+          "planned": 15,
+          "observed": 15,
+          "passed": 15,
+          "unsupported": 0
+        },
+        "quick256": {
+          "planned": 2,
+          "observed": 2,
+          "passed": 2,
+          "unsupported": 0
+        }
+      },
+      "errors": [],
+      "primary": 62,
+      "warmup": 10
+    },
+    "tensorfold_mtp": {
+      "validation": {
+        "complete": true,
+        "planned": 72,
+        "observed": 72,
+        "missing": [],
+        "duplicates": 0
+      },
+      "phases": {
+        "capability": {
+          "planned": 2,
+          "observed": 2,
+          "passed": 0,
+          "unsupported": 2
+        },
+        "long84865": {
+          "planned": 1,
+          "observed": 1,
+          "passed": 0,
+          "unsupported": 1
+        },
+        "loop": {
+          "planned": 3,
+          "observed": 3,
+          "passed": 1,
+          "unsupported": 2
+        },
+        "matched400": {
+          "planned": 24,
+          "observed": 24,
+          "passed": 24,
+          "unsupported": 0
+        },
+        "panel_high": {
+          "planned": 15,
+          "observed": 15,
+          "passed": 15,
+          "unsupported": 0
+        },
+        "panel_zero": {
+          "planned": 15,
+          "observed": 15,
+          "passed": 0,
+          "unsupported": 15
+        },
+        "quick256": {
+          "planned": 2,
+          "observed": 2,
+          "passed": 0,
+          "unsupported": 2
+        }
+      },
+      "errors": [],
+      "primary": 62,
+      "warmup": 10
+    }
+  },
+  "matched400": [
+    {
+      "mode": "greedy",
+      "task": "code",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 29.709605361131796,
+          "legacy_decode_rates": [
+            29.80625931445604,
+            29.761904761904752,
+            29.784065524944154
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.680431771527953,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.0663363375729835,
+      "sampled_seed_parity": "not applicable"
+    },
+    {
+      "mode": "greedy",
+      "task": "math",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 28.39857651245552,
+          "legacy_decode_rates": [
+            28.38892831795599,
+            28.46975088967972,
+            28.46975088967972
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.55836275880292,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.11126565604306,
+      "sampled_seed_parity": "not applicable"
+    },
+    {
+      "mode": "greedy",
+      "task": "prose",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 25.659163987138246,
+          "legacy_decode_rates": [
+            25.80645161290325,
+            25.72347266881027,
+            25.72347266881027
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.0297564295324,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.2093050438075919,
+      "sampled_seed_parity": "not applicable"
+    },
+    {
+      "mode": "greedy",
+      "task": "structured",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.4173228346457,
+          "legacy_decode_rates": [
+            31.496062992126014,
+            31.52088258471238,
+            31.421838177533342
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 35.352169145371825,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.125244481569478,
+      "sampled_seed_parity": "not applicable"
+    },
+    {
+      "mode": "temp0.6_top_p0.95",
+      "task": "code",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 28.039353478566373,
+          "legacy_decode_rates": [
+            29.21840759678598,
+            27.855153203342592,
+            28.10962754743496
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.447898680619662,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.1215629028200962,
+      "sampled_seed_parity": false
+    },
+    {
+      "mode": "temp0.6_top_p0.95",
+      "task": "math",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 28.39857651245549,
+          "legacy_decode_rates": [
+            27.624309392265157,
+            28.61230329041484,
+            28.46975088967969
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.506420926502305,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.1094366266099192,
+      "sampled_seed_parity": false
+    },
+    {
+      "mode": "temp0.6_top_p0.95",
+      "task": "prose",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 26.529255319149,
+          "legacy_decode_rates": [
+            26.595744680851126,
+            27.39726027397256,
+            25.83979328165381
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 29.748773744064287,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.121357285991794,
+      "sampled_seed_parity": false
+    },
+    {
+      "mode": "temp0.6_top_p0.95",
+      "task": "structured",
+      "arms": {
+        "tabbyapi_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 31.392604248623183,
+          "legacy_decode_rates": [
+            31.496062992126014,
+            31.471282454760082,
+            31.421838177533342
+          ],
+          "generated_tokens": [
+            400.0,
+            400.0,
+            400.0
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        },
+        "tensorfold_mtp": {
+          "repeats": 3,
+          "valid_timing_repeats": 3,
+          "median_common_decode_tok_s": 34.770712715266846,
+          "legacy_decode_rates": null,
+          "generated_tokens": [
+            400,
+            400,
+            400
+          ],
+          "cached_prompt_tokens": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "tensorfold_vs_tabby_ratio": 1.107608417571531,
+      "sampled_seed_parity": false
+    }
+  ],
+  "quality_cases": [
+    {
+      "case": "panel_high:multiply",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:addition",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:subtraction",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:division",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:square",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:modulo",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:percent",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:sequence",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:planet",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:capital",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:chemistry",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:binary",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:factorial",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:length",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_high:code",
+      "phase": "panel_high",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    },
+    {
+      "case": "panel_zero:multiply",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:addition",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:subtraction",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:division",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:square",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:modulo",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:percent",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:sequence",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:planet",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:capital",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:chemistry",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:binary",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:factorial",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:length",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "panel_zero:code",
+      "phase": "panel_zero",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "known_answer",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "known_answer",
+          "finish_reason": "unsupported",
+          "delivered": false,
+          "content_words": 0,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "loop:41",
+      "phase": "loop",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "loop",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 2032,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "loop",
+          "finish_reason": "unsupported",
+          "delivered": true,
+          "content_words": 462,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "loop:42",
+      "phase": "loop",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "loop",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1778,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": false,
+          "scorer": "loop",
+          "finish_reason": "unsupported",
+          "delivered": true,
+          "content_words": 213,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": false
+    },
+    {
+      "case": "loop:43",
+      "phase": "loop",
+      "arms": {
+        "tabbyapi_mtp": {
+          "passed": true,
+          "scorer": "loop",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1588,
+          "cap_hit": false,
+          "error": null
+        },
+        "tensorfold_mtp": {
+          "passed": true,
+          "scorer": "loop",
+          "finish_reason": "stop",
+          "delivered": true,
+          "content_words": 1545,
+          "cap_hit": false,
+          "error": null
+        }
+      },
+      "paired_supported": true
+    }
+  ],
+  "restoration": {
+    "status": "verified",
+    "generation": {
+      "route": "http://172.17.0.1:8001",
+      "models": {
+        "models": [
+          {
+            "name": "qwen38-flash-next-gsq-iq3xxs",
+            "model": "qwen38-flash-next-gsq-iq3xxs",
+            "modified_at": "",
+            "size": "",
+            "digest": "",
+            "type": "model",
+            "description": "",
+            "tags": [
+              ""
+            ],
+            "capabilities": [
+              "completion",
+              "multimodal"
+            ],
+            "parameters": "",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "",
+              "families": [
+                ""
+              ],
+              "parameter_size": "",
+              "quantization_level": ""
+            }
+          }
+        ],
+        "object": "list",
+        "data": [
+          {
+            "id": "qwen38-flash-next-gsq-iq3xxs",
+            "aliases": [
+              "qwen38-flash-next-gsq-iq3xxs"
+            ],
+            "tags": [],
+            "object": "model",
+            "created": 1790833265,
+            "owned_by": "llamacpp",
+            "meta": {
+              "vocab_type": true,
+              "n_vocab": 248320,
+              "n_ctx": 262144,
+              "n_ctx_train": 262144,
+              "n_embd": 2560,
+              "n_params": 176943899520,
+              "size": 75828974080,
+              "ftype": "IQ3_XXS - 3.0625 bpw"
+            }
+          }
+        ]
+      },
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Hello! How can I help you today?"
+            }
+          }
+        ],
+        "created": 1790833266,
+        "model": "qwen38-flash-next-gsq-iq3xxs",
+        "system_fingerprint": "b0-797da982b",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 10,
+          "prompt_tokens": 18,
+          "total_tokens": 28,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-0261Hj5bINfzpYyDNxgcsQz3mgr9XKhN",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 18,
+          "prompt_ms": 524.855,
+          "prompt_per_token_ms": 29.158611111111114,
+          "prompt_per_second": 34.295186289546635,
+          "predicted_n": 10,
+          "predicted_ms": 361.364,
+          "predicted_per_token_ms": 40.151555555555554,
+          "predicted_per_second": 24.905635315083963,
+          "draft_n": 9,
+          "draft_n_accepted": 9
+        }
+      }
+    },
+    "units": {
+      "qwen38-gsq-iq3xxs.service": {
+        "MainPID": "2724764",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/qwen38-gsq-iq3xxs.service",
+        "MemorySwapMax": "0",
+        "ActiveState": "active",
+        "SubState": "running"
+      },
+      "qwen38-gsq-iq3xxs-bridge.service": {
+        "MainPID": "2725275",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/qwen38-gsq-iq3xxs-bridge.service",
+        "MemorySwapMax": "infinity",
+        "ActiveState": "active",
+        "SubState": "running"
+      },
+      "qwen38-gsq-iq3xxs-tailscale.service": {
+        "MainPID": "2725278",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/qwen38-gsq-iq3xxs-tailscale.service",
+        "MemorySwapMax": "infinity",
+        "ActiveState": "active",
+        "SubState": "running"
+      }
+    },
+    "checked_time_ns": 1790833266320137686,
+    "scope": "one terminal authenticated generation"
+  },
+  "limitations": [
+    "Original pinned TabbyAPI ignores seed, including historical tests. Reuse exact submitted seed fields and original actual API behavior. Temperature/p/topk and workload matched; no seeded token parity or controlled stochastic pairing claim. No sampling shim or original runtime change. Greedy cells are primary controlled comparison; sampled cells exploratory same-distribution repeats.",
+    "No parity gate or new generic quality claim. Historical six-task panel separate.",
+    "TabbyAPI wire TTFT and TF engine TTFT are differently scoped. Common decode window first-to-last; Tabby durations rounded0.01s.",
+    "TF dense2051 only; unsupported long/vision/tools/outputbudget preserved, not failed equivalent tests.",
+    "Original loop caps8192 unchanged; TF boundaryabort preservespartialoutput and labelsunsupported."
+  ],
+  "pooled_matched400": {
+    "greedy": {
+      "tabbyapi_mtp": {
+        "pooled_decode_tok_s": 28.636363636363633,
+        "measured_rows": 12,
+        "generated_tokens": 4800.0,
+        "postfirst_tokens": 4788.0,
+        "decode_seconds": 167.20000000000002
+      },
+      "tensorfold_mtp": {
+        "pooled_decode_tok_s": 32.31663030501398,
+        "measured_rows": 12,
+        "generated_tokens": 4800,
+        "postfirst_tokens": 4788,
+        "decode_seconds": 148.159011469
+      },
+      "tensorfold_percent_change": 12.851724874652003
+    },
+    "temp0.6_top_p0.95": {
+      "tabbyapi_mtp": {
+        "pooled_decode_tok_s": 28.491520380839034,
+        "measured_rows": 12,
+        "generated_tokens": 4800.0,
+        "postfirst_tokens": 4788.0,
+        "decode_seconds": 168.05
+      },
+      "tensorfold_mtp": {
+        "pooled_decode_tok_s": 31.754939573792598,
+        "measured_rows": 12,
+        "generated_tokens": 4800,
+        "postfirst_tokens": 4788,
+        "decode_seconds": 150.779691735
+      },
+      "tensorfold_percent_change": 11.454001574265792
+    },
+    "both": {
+      "tabbyapi_mtp": {
+        "pooled_decode_tok_s": 28.563758389261746,
+        "measured_rows": 24,
+        "generated_tokens": 9600.0,
+        "postfirst_tokens": 9576.0,
+        "decode_seconds": 335.25
+      },
+      "tensorfold_mtp": {
+        "pooled_decode_tok_s": 32.03332287644669,
+        "measured_rows": 24,
+        "generated_tokens": 9600,
+        "postfirst_tokens": 9576,
+        "decode_seconds": 298.938703204
+      },
+      "tensorfold_percent_change": 12.146736574026228
+    }
+  },
+  "pooled_method": "Sum output-minus-first tokens / sum first-to-last generation durations. Fixed400tokens3measuredrepeats per4workloads per2samplers. Sampling repeats are exploratory because pinned TabbyAPI ignores seed.",
+  "verdict": "Measured short fixed-work decode improvement versus fresh TabbyAPI recipe, not a replacement: incomplete context/capability envelope; previous six-task statistical nonqualification remains unchanged.",
+  "post_analysis_correction": "Durable driver dispatched correct analyzer file with prior root argument. That invalid aggregation is retained in runs/control/analysis.log. CPU-only rerun with exact continuation root produced complete unique denominators; no model requests repeated."
+}

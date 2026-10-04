@@ -1,0 +1,103 @@
+{
+  "status": "passed",
+  "url": "http://127.0.0.1:8002",
+  "cases": [
+    {
+      "case": "short",
+      "first_prompt_tokens": 34,
+      "second_prompt_tokens": 47,
+      "resumed_cached": 34,
+      "resent_cached": 34,
+      "fresh_cached": 0,
+      "resumed_prefill_s": 0.14,
+      "resent_prefill_s": 0.135,
+      "fresh_prefill_s": 0.275,
+      "reply_tokens": 9,
+      "finish": [
+        "stop",
+        "stop",
+        "stop"
+      ],
+      "triggers": [
+        null,
+        null,
+        null
+      ],
+      "resumed_equals_fresh": true,
+      "resent_equals_fresh": true,
+      "first_difference": [
+        null,
+        null
+      ],
+      "resumed_from_first_turn": true,
+      "resent_from_first_turn": true,
+      "fresh_filled_everything": true,
+      "passed": true
+    },
+    {
+      "case": "across_dense_limit",
+      "first_prompt_tokens": 1197,
+      "second_prompt_tokens": 2570,
+      "resumed_cached": 1197,
+      "resent_cached": 1197,
+      "fresh_cached": 0,
+      "resumed_prefill_s": 6.509,
+      "resent_prefill_s": 5.843,
+      "fresh_prefill_s": 10.791,
+      "reply_tokens": 3,
+      "finish": [
+        "stop",
+        "stop",
+        "stop"
+      ],
+      "triggers": [
+        null,
+        null,
+        null
+      ],
+      "resumed_equals_fresh": true,
+      "resent_equals_fresh": true,
+      "first_difference": [
+        null,
+        null
+      ],
+      "resumed_from_first_turn": true,
+      "resent_from_first_turn": true,
+      "fresh_filled_everything": true,
+      "passed": true
+    },
+    {
+      "case": "long_context",
+      "first_prompt_tokens": 10799,
+      "second_prompt_tokens": 11189,
+      "resumed_cached": 10799,
+      "resent_cached": 10799,
+      "fresh_cached": 0,
+      "resumed_prefill_s": 1.757,
+      "resent_prefill_s": 1.767,
+      "fresh_prefill_s": 47.254,
+      "reply_tokens": 3,
+      "finish": [
+        "stop",
+        "stop",
+        "stop"
+      ],
+      "triggers": [
+        null,
+        null,
+        null
+      ],
+      "resumed_equals_fresh": true,
+      "resent_equals_fresh": true,
+      "first_difference": [
+        null,
+        null
+      ],
+      "resumed_from_first_turn": true,
+      "resent_from_first_turn": true,
+      "fresh_filled_everything": true,
+      "passed": true
+    }
+  ],
+  "time_ns": 1791111421625418737
+}

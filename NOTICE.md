@@ -40,3 +40,12 @@ Model weights are not redistributed. They remain subject to their model reposito
 llama.cpp, vLLM, ExLlamaV3, FlashInfer, PyTorch, Hugging Face tooling, the pinned EXL3 recipe, and their transitive dependencies retain their own licenses. This repository's MIT license applies only to the scripts, tests, patches, and notes authored here.
 
 This project is independent and is not endorsed by the referenced projects or vendors.
+
+## TensorFold lane
+
+The TensorFold lane carries two patches against the MIT-licensed upstream runtime:
+
+- Runtime: https://github.com/ashhart/TensorFold
+- Tag `v0.5.0`, commit `9cd52ab4daba68ddd09be89be8f23ad43175e821`
+
+`tensorfold/patches/` holds modifications to that source and new files written for this recipe. TensorFold's own code is not copied here beyond the context lines of the patches. The checkpoint is the one the EXL3 lane pins.
