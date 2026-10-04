@@ -1,6 +1,6 @@
 # Dependency boundary
 
-This repository contains two independent deployment and validation lanes for GLM-5.3 Flash on one NVIDIA GB10.
+This repository contains the TensorFold recipe for GLM-5.3 Flash on one NVIDIA GB10 and the earlier lanes it replaced.
 
 ## GGUF lane
 
@@ -24,9 +24,9 @@ The measured external-drafter profile additionally pins:
 
 The DFlash2 drafter weights are licensed **CC BY-NC-ND 4.0**. They are not included in this repository. The downloader requires the operator to set `ACCEPT_DFLASH2_NC_LICENSE=1` explicitly before obtaining them. The target GLM-5.3 Flash artifact remains under its existing MIT terms.
 
-## EXL3 lane
+## EXL3-K2 lane
 
-The EXL3 lane pins and invokes the MIT-licensed upstream recipe:
+The EXL3-K2 lane (root `scripts/`, `systemd/`, `manifests/`) pins and invokes the MIT-licensed upstream recipe:
 
 - Repository: https://github.com/vcruz305/GLM-5.3-Flash-EXL3-K2-DGX-Spark-recipe
 - Commit: `0b8dd0d6c7b186076f2e61d1b99a6289f8006c3c`
@@ -41,11 +41,11 @@ llama.cpp, vLLM, ExLlamaV3, FlashInfer, PyTorch, Hugging Face tooling, the pinne
 
 This project is independent and is not endorsed by the referenced projects or vendors.
 
-## TensorFold lane
+## TensorFold
 
-The TensorFold lane carries two patches against the MIT-licensed upstream runtime:
+The recipe carries two patches against the MIT-licensed upstream runtime:
 
 - Runtime: https://github.com/ashhart/TensorFold
 - Tag `v0.5.0`, commit `9cd52ab4daba68ddd09be89be8f23ad43175e821`
 
-`tensorfold/patches/` holds modifications to that source and new files written for this recipe. TensorFold's own code is not copied here beyond the context lines of the patches. The checkpoint is the one the EXL3 lane pins.
+`patches/` holds modifications to that source and new files written for this recipe. TensorFold's own code is not copied here beyond the context lines of the patches. The checkpoint is `turboderp/GLM-5.3-Flash-exl3`, the one the `exllamav3/` lane pins.

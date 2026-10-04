@@ -1,3 +1,4 @@
-# Patches and receipts are stored byte for byte: their checksums are quoted in the lane README.
-tensorfold/patches/*.patch -text
-tensorfold/results/* -text
+# The patches and TensorFold receipts are stored byte for byte: the README quotes the patch checksums.
+patches/*.patch -text
+results/glm53-tensorfold-* -text
+results/glm53-tabby-vs-tensorfold-* -text

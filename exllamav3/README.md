@@ -8,6 +8,12 @@ The [quick-screen receipt](results/glm53-exl152-quick-ab-20260927.json) reports 
 
 These are narrow checks, not a repeated 15-task quality panel, teacher-forced top-1 test, 30-minute loaded soak, or full 262K-prompt validation. Output hashes differed between benchmark arms; throughput alone does not establish output parity. Earlier deployment receipts remain under `results/` for audit, but their figures are not attributed to this release.
 
+## Deployment card
+
+The full-suite **29.97 tok/s** headline below belongs to an earlier deployment. Only the quick-screen figures above are 1.5.2 measurements.
+
+![GLM-5.3 Flash EXL3 deployment history and 1.5.2 quick-screen results on one NVIDIA GB10](../assets/glm53-exllamav3-tabbyapi-result-card.png)
+
 ## Pins
 
 | Component | Value |
