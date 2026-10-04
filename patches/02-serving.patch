@@ -846,15 +846,16 @@ index 0000000..3082b5d
 +if __name__=='__main__':sys.exit(main())
 diff --git a/serving/http_run.py b/serving/http_run.py
 new file mode 100644
-index 0000000..9a48963
+index 0000000..234fa3e
 --- /dev/null
 +++ b/serving/http_run.py
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,165 @@
 +"""Upstream TensorFold HTTP run, owned GLM image-continuation seam only."""
 +def run(self, body: dict[str, Any], chat: bool, emit: Callable[[dict[str, Any]], bool], *,
 +        prepared: PreparedRequest | None = None, cancelled: Callable[[], bool] | None = None) -> dict[str, Any]:
 +    """One reply; once ``cancelled()`` holds, a waiting request raises ``RequestCancelled`` unstarted, a running one stops at its next round and raises it after ``generate``."""
 +
++    arrived = time.perf_counter()               # /metrics times a request from its arrival, queue wait included
 +    prepared = prepared if prepared is not None else self.prepare(body, chat)
 +    prompt, max_tokens = prepared.prompt, prepared.max_tokens
 +    tools, thinking = prepared.tools, prepared.thinking
@@ -869,6 +870,7 @@ index 0000000..9a48963
 +    stopped = {"client": False, "stop": False}
 +    failed: list[Exception] = []
 +    stream = StreamDecoder(self.tok, ends)
++    serving: list[Any] = [None]                 # the running request, so /metrics sees its first token
 +
 +    def visible(finished: bool) -> tuple[str, str]:
 +        raw = stream.final() if finished else stream.text
@@ -912,6 +914,8 @@ index 0000000..9a48963
 +                stopped["client"] = True
 +            elif cancelled is not None and cancelled():     # every round, with or without new text
 +                stopped["client"] = True
++            if serving[0] is not None:
++                serving[0].saw()
 +        except Exception as exc:        # noqa: BLE001  raised after generate returns, never into the engine
 +            failed.append(exc)
 +            return True
@@ -969,8 +973,12 @@ index 0000000..9a48963
 +    try:
 +        if cancelled is not None and cancelled():                # the client left while this request waited
 +            raise RequestCancelled("the client left before the request started")
-+        with health.of(self).running(len(prompt), out) as request:      # /health reads ``out``; rounds never call in
-+            stats = request.stats = generate_gated(generate, prompt, max_tokens, gates, on_tokens)
++        with health.of(self).running(len(prompt), out, arrived) as request:  # /health reads ``out``; rounds never call in
++            serving[0] = request
++            try:
++                stats = request.stats = generate_gated(generate, prompt, max_tokens, gates, on_tokens)
++            finally:
++                serving[0] = None
 +    finally:
 +        if turns is not None:
 +            turns.give()
@@ -1009,7 +1017,7 @@ index 0000000..9a48963
 +
 diff --git a/serving/server.py b/serving/server.py
 new file mode 100644
-index 0000000..0a8d80c
+index 0000000..00806bb
 --- /dev/null
 +++ b/serving/server.py
 @@ -0,0 +1,300 @@
@@ -1019,8 +1027,8 @@ index 0000000..0a8d80c
 +import argparse,collections,dataclasses,importlib.util,json,os,secrets,sys,time
 +from pathlib import Path
 +from types import SimpleNamespace
-+HERE=Path(__file__).resolve().parent;COPY=HERE.parent;ROOT=HERE.parents[2];STUDY=COPY.parent;STAGE='tfglm-thinking-v58-pipeline';MAX_OUTPUT=16384
-+# v58 context: 262,144 cache slots. The prompt ceiling leaves 4,096 tokens of reply inside the window.
++HERE=Path(__file__).resolve().parent;COPY=HERE.parent;ROOT=HERE.parents[2];STUDY=COPY.parent;STAGE='tfglm-thinking-v59-pipeline';MAX_OUTPUT=16384
++# context (since v58): 262,144 cache slots. The prompt ceiling leaves 4,096 tokens of reply inside the window.
 +SLOTS=262144;CONTEXT=SLOTS-128;MAX_PROMPT=CONTEXT-4096
 +# Host memory this copy keeps free. The inherited v42 guard and loader keep their own 20 GiB figure.
 +RESERVE_GIB=15
@@ -1325,7 +1333,7 @@ index 0000000..bf836a2
 +}
 diff --git a/serving/supervisor.py b/serving/supervisor.py
 new file mode 100644
-index 0000000..22f2c7f
+index 0000000..5bd773a
 --- /dev/null
 +++ b/serving/supervisor.py
 @@ -0,0 +1,75 @@
@@ -1334,7 +1342,7 @@ index 0000000..22f2c7f
 +"""
 +import argparse,fcntl,hashlib,importlib.util,json,os,signal,subprocess,sys,time,urllib.request
 +from pathlib import Path
-+HERE=Path(__file__).resolve().parent;STUDY=HERE.parent.parent;ROOT=STUDY.parent;NAME='tfglm-thinking-v58-pipeline';GIB=1024**3;RESERVE=15*GIB  # host memory this copy keeps free
++HERE=Path(__file__).resolve().parent;STUDY=HERE.parent.parent;ROOT=STUDY.parent;NAME='tfglm-thinking-v59-pipeline';GIB=1024**3;RESERVE=15*GIB  # host memory this copy keeps free
 +IMAGE='sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee'
 +def dump(p,x):
 + t=p.with_suffix('.pending');t.write_text(json.dumps(x,indent=2,allow_nan=False)+'\n');t.replace(p)
@@ -1363,9 +1371,9 @@ index 0000000..22f2c7f
 +  if int(m.properties(m.UNITS[0])['MainPID']):raise RuntimeError('Displaced GPU PID remains')
 +  event('load_baseline',sample=m.host_sample(),immutable_host_swap_baseline=baseline['host_swap_used'])
 +  if baseline['mem_available']<RESERVE:raise RuntimeError('Reserve before launch')
-+  argv=['docker','run','--pull','never','--name',NAME,'--label','tfglm.stage='+NAME,'--gpus','all','--network','host','--memory',str(95*GIB),'--memory-swap',str(95*GIB),'--entrypoint','python3','-v',str(ROOT)+':/work:ro','-v',str(STUDY)+':/work/thinking-v58:rw','-v',str(Path.home()/'models/glm53-flash-exl3-2.05bpw')+':/model:ro']
-+  for v in ['EXL3_INT8_GEMV=2','PYTHONDONTWRITEBYTECODE=1','TFGLM_CONTROLLER_STAGE='+NAME,'TORCH_EXTENSIONS_DIR=/work/thinking-v58/runs/torch_extensions','PYTHONPATH=/work/thinking-v58/grammar-deps:/work/thinking-v58/TensorFold/src:/opt/sglang/lib/python3.12/site-packages']:argv+=['-e',v]
-+  argv += [IMAGE,'-B','-S','/work/thinking-v58/TensorFold/serving/server.py','--model','/model','--host-swap-baseline-bytes',str(baseline['host_swap_used'])]
++  argv=['docker','run','--pull','never','--name',NAME,'--label','tfglm.stage='+NAME,'--gpus','all','--network','host','--memory',str(95*GIB),'--memory-swap',str(95*GIB),'--entrypoint','python3','-v',str(ROOT)+':/work:ro','-v',str(STUDY)+':/work/thinking-v59:rw','-v',str(Path.home()/'models/glm53-flash-exl3-2.05bpw')+':/model:ro']
++  for v in ['EXL3_INT8_GEMV=2','PYTHONDONTWRITEBYTECODE=1','TFGLM_CONTROLLER_STAGE='+NAME,'TORCH_EXTENSIONS_DIR=/work/thinking-v59/runs/torch_extensions','PYTHONPATH=/work/thinking-v59/grammar-deps:/work/thinking-v59/TensorFold/src:/opt/sglang/lib/python3.12/site-packages']:argv+=['-e',v]
++  argv += [IMAGE,'-B','-S','/work/thinking-v59/TensorFold/serving/server.py','--model','/model','--host-swap-baseline-bytes',str(baseline['host_swap_used'])]
 +  ctl.container=NAME;so=(run/'stdout.log').open('w');se=(run/'stderr.log').open('w');child=subprocess.Popen(argv,stdout=so,stderr=se);start=time.monotonic();samples=0;lastwrite=0
 +  while True:
 +   if child.poll() is not None:raise RuntimeError('Serving process exited '+str(child.returncode))
@@ -1750,7 +1758,7 @@ index 0000000..5283029
 +        self.model.unload()
 +        self.config.stc.close()
 diff --git a/src/tensorfold/cuda/http.py b/src/tensorfold/cuda/http.py
-index f314446..2fced8e 100644
+index 1a1dc30..5ed9c5c 100644
 --- a/src/tensorfold/cuda/http.py
 +++ b/src/tensorfold/cuda/http.py
 @@ -2,6 +2,7 @@
@@ -1761,7 +1769,7 @@ index f314446..2fced8e 100644
  import time
  import traceback
  import uuid
-@@ -121,18 +122,46 @@ def make_handler(app: App):
+@@ -162,18 +163,46 @@ def make_handler(app: App):
                  self.send_header("Connection", "close")
                  self.end_headers()
  
@@ -1812,10 +1820,10 @@ index f314446..2fced8e 100644
                      self.close_connection = True
                      return
 diff --git a/src/tensorfold/cuda/server.py b/src/tensorfold/cuda/server.py
-index eef1b5f..afc8fb6 100644
+index f083453..4405f5d 100644
 --- a/src/tensorfold/cuda/server.py
 +++ b/src/tensorfold/cuda/server.py
-@@ -44,7 +44,10 @@ class PreparedRequest:
+@@ -51,7 +51,10 @@ class PreparedRequest:
      stop: tuple[str, ...] = ()
      vision: Any = None
      grammar: Any = None     # (spec, compiled grammar) of the request's response_format, or None
@@ -2343,7 +2351,7 @@ index 0000000..f5636bc
 +        else:
 +            self.logger.info(message)
 diff --git a/src/tensorfold/families/glm5_next/cuda/decode.py b/src/tensorfold/families/glm5_next/cuda/decode.py
-index 14af035..b203a59 100644
+index fd36150..7f81163 100644
 --- a/src/tensorfold/families/glm5_next/cuda/decode.py
 +++ b/src/tensorfold/families/glm5_next/cuda/decode.py
 @@ -154,8 +154,38 @@ class Engine:
@@ -2385,13 +2393,13 @@ index 14af035..b203a59 100644
          return sample_rows(self.w, logits, positions, sampling, None, probs)
  
      def verify_window(self, tokens: list[int]) -> list[int]:
-@@ -312,8 +342,12 @@ def restore(e: Engine, snap: Snapshot, drafter=None) -> None:
+@@ -343,8 +373,12 @@ def restore(e: Engine, snap: Snapshot, drafter=None) -> None:
  # -- prefill ----------------------------------------------------------------------------------------------------
  @torch.no_grad()
  def prefill(e: Engine, prompt: Sequence[int], sampling: Sampling | None, *, mtp: bool = True, drafter=None,
--            resume: Snapshot | None = None) -> int:
+-            resume: Snapshot | None = None, keep_at: int | None = None, keep=None) -> int:
 -    """Commit the prompt in chunks and sample its first token; a resumed prompt ends in a fresh prefill's state."""
-+            resume: Snapshot | None = None, stop=None) -> int:
++            resume: Snapshot | None = None, keep_at: int | None = None, keep=None, stop=None) -> int:
 +    """Commit the prompt in chunks and sample its first token; a resumed prompt ends in a fresh prefill's state.
 +
 +    ``stop()`` is asked before each chunk: once it holds, the prompt is abandoned with ``RequestCancelled`` and
@@ -2400,7 +2408,19 @@ index 14af035..b203a59 100644
  
      if not prompt:
          raise ValueError("prefill requires at least one token")
-@@ -337,6 +371,11 @@ def prefill(e: Engine, prompt: Sequence[int], sampling: Sampling | None, *, mtp:
+@@ -365,14 +399,20 @@ def prefill(e: Engine, prompt: Sequence[int], sampling: Sampling | None, *, mtp:
+         if use_mtp:
+             k = resume.pending.shape[0]
+             _absorb_rows(e, resume.pending, list(prompt[begin - k + 1:begin + 1]))
+-    from .forward import Cut
++    if keep_at is not None:                              # only a kept prefix cuts a chunk at an interior row
++        from .forward import Cut
+ 
+-    if keep_at is not None and (keep is None or not max(1, begin) <= keep_at <= len(prompt)):
+-        raise ValueError("a kept prefix needs a callback and a point in the prompt's prefill")
++        if keep is None or not max(1, begin) <= keep_at <= len(prompt):
++            raise ValueError("a kept prefix needs a callback and a point in the prompt's prefill")
+     kept = resume if keep_at == begin else None
      last = None
      prof.active = True
      for start in range(begin, len(prompt), e.prefill_rows):
@@ -2411,7 +2431,7 @@ index 14af035..b203a59 100644
 +            raise RequestCancelled("the client left while its prompt was filling")
          chunk = list(prompt[start:start + e.prefill_rows])
          R = len(chunk)
-         last = compute(w, st, b, stage(w, st, b, chunk), nch=chunks_for(st, R), host_pos=st.pos).clone()
+         point = keep_at - start if keep_at is not None else 0
 diff --git a/tests/fixtures/c_on_arithmetic.json b/tests/fixtures/c_on_arithmetic.json
 new file mode 100644
 index 0000000..668adee

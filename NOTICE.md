@@ -37,15 +37,16 @@ The EXL3-K2 lane (root `scripts/`, `systemd/`, `manifests/`) pins and invokes th
 
 Model weights are not redistributed. They remain subject to their model repositories' terms and the source GLM-5.3 Flash license.
 
-llama.cpp, vLLM, ExLlamaV3, FlashInfer, PyTorch, Hugging Face tooling, the pinned EXL3 recipe, and their transitive dependencies retain their own licenses. This repository's MIT license applies only to the scripts, tests, patches, and notes authored here.
+llama.cpp, vLLM, ExLlamaV3, TensorFold, FlashInfer, PyTorch, Hugging Face tooling, the pinned EXL3 recipe, and their transitive dependencies retain their own licenses. This repository's MIT license applies only to the scripts, tests, patches, and notes authored here.
 
 This project is independent and is not endorsed by the referenced projects or vendors.
 
 ## TensorFold
 
-The recipe carries two patches against the MIT-licensed upstream runtime:
+The recipe carries two patches against the upstream runtime:
 
 - Runtime: https://github.com/ashhart/TensorFold
-- Tag `v0.5.0`, commit `9cd52ab4daba68ddd09be89be8f23ad43175e821`
+- Tag `v0.6.5`, commit `609ca419abecebdc5a059498a613680bd3aa847f`
+- License: Apache-2.0 from 0.6.0. Releases up to 0.5.0 were MIT.
 
-`patches/` holds modifications to that source and new files written for this recipe. TensorFold's own code is not copied here beyond the context lines of the patches. The checkpoint is `turboderp/GLM-5.3-Flash-exl3`, the one the `exllamav3/` lane pins.
+`patches/` holds modifications to that source and new files written for this recipe. The upstream files the patches change stay under Apache-2.0, and each patch states what was changed in them. The files the patches add are MIT, as the rest of this repository. TensorFold's own code is not copied here beyond the context lines of the patches. The checkpoint is `turboderp/GLM-5.3-Flash-exl3`, the one the `exllamav3/` lane pins.
