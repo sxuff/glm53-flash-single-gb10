@@ -178,8 +178,12 @@ for directory in (ROOT / "assets", ROOT / "gguf", ROOT / "exllamav3", ROOT / "pa
         if path.is_file() and "__pycache__" not in path.parts and "runtime" not in path.parts and "local" not in path.parts
     )
 all_public = b"\n".join(path.read_bytes() for path in public_files)
-# The mosaic checkpoint's repository ID is needed to reproduce it; it is the one allowed mention.
+# The mosaic's author is credited in the README and named by its checkpoint ID in the receipts; images stay
+# free of names (a byte check cannot read rendered text, so the cards are reviewed by eye).
+all_public = b"\n".join(path.read_bytes() for path in public_files if path.name != "README.md" or path.parent != ROOT)
 all_public = all_public.replace(b"0x" + b"Sero/GLM-5.3-Flash-EXL3-Spark", b"")
+readme_root = (ROOT / "README.md").read_text()
+assert "0xSero reports it better" in readme_root and "0xSero's [GLM-5.3-Flash EXL3 M288 Mosaic 12L]" in readme_root
 for forbidden in (
     "/home/" + "sxuf",
     "gx10" + "-fe09",

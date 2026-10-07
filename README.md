@@ -6,7 +6,7 @@ GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.6.5 behin
 
 ![GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10: 30.73 tok/s with TensorFold](assets/glm53-mosaic-tensorfold-result-card.png)
 
-[GLM-5.3-Flash EXL3 M288 Mosaic 12L](https://huggingface.co/0xSero/GLM-5.3-Flash-EXL3-Spark) takes the routed experts of 12 layers (3, 32, 33, 36 to 44) from the 3.05 bpw pack and keeps everything else, including the MTP layer, byte-identical to the 2.05 bpw base. Its model card reports it better than the base on 32 of 32 test rows, +1.94 points of agreement with the full model and 5.9% lower perplexity. Those quality figures come from the model card and were not re-measured here. The model card's runtime serves it at 9 to 10 tok/s without MTP.
+0xSero's [GLM-5.3-Flash EXL3 M288 Mosaic 12L](https://huggingface.co/0xSero/GLM-5.3-Flash-EXL3-Spark) takes the routed experts of 12 layers (3, 32, 33, 36 to 44) from the 3.05 bpw pack and keeps everything else, including the MTP layer, byte-identical to the 2.05 bpw base. 0xSero reports it better than the base on 32 of 32 test rows, +1.94 points of agreement with the full model and 5.9% lower perplexity. Those quality figures are 0xSero's and were not re-measured here. 0xSero's own runtime serves it at 9 to 10 tok/s without MTP.
 
 The TensorFold port here refused any routed expert that was not 2-bit. [`03-mosaic-mixed-width-experts.patch`](patches/03-mosaic-mixed-width-experts.patch) admits 2-bit and 3-bit experts side by side; the grouped kernel already reads a width per expert. With it the mosaic runs with exact MTP:
 
