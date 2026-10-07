@@ -1,0 +1,171 @@
+{
+ "status": "complete",
+ "date": "2026-10-05",
+ "model": {
+  "repo": "0xSero/GLM-5.3-Flash-EXL3-Spark",
+  "revision": "2642851741fc833764e77d03039117be559dc83e",
+  "name": "GLM-5.3-Flash EXL3 M288 Mosaic 12L"
+ },
+ "control": {
+  "repo": "turboderp/GLM-5.3-Flash-exl3",
+  "revision": "51058cd551c7e570d87bd32a4adee720edce2349",
+  "bpw": 2.05
+ },
+ "engine": {
+  "tensorfold_commit": "609ca419abecebdc5a059498a613680bd3aa847f",
+  "patches": [
+   "01-exl3-single-gpu-port.patch",
+   "02-serving.patch",
+   "03-mosaic-mixed-width-experts.patch"
+  ],
+  "image": "sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee"
+ },
+ "protocol": "Same four fixed prompts and collector as results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json; 400 tokens, temperature 0, 3 repeats per prompt, median per prompt, mean of the four medians; 2,560 slots; both arms in one session, mosaic first. Drafted output compared token-for-token against an MTP-off serial run of the same prompt.",
+ "headline_tok_s": 30.73,
+ "base_same_session_tok_s": 32.56,
+ "first_deployment_tok_s": 11.63,
+ "ratio_vs_first_deployment": 2.64,
+ "ratio_vs_base_same_session": 0.94,
+ "arms": {
+  "mosaic": {
+   "prompts": {
+    "code": {
+     "repeats": 3,
+     "decode_tok_s": [
+      30.767,
+      30.638,
+      30.584
+     ],
+     "median_decode_tok_s": 30.638,
+     "accepted": 513,
+     "proposals": 681
+    },
+    "math": {
+     "repeats": 3,
+     "decode_tok_s": [
+      31.687,
+      31.855,
+      31.824
+     ],
+     "median_decode_tok_s": 31.824,
+     "accepted": 546,
+     "proposals": 648
+    },
+    "prose": {
+     "repeats": 3,
+     "decode_tok_s": [
+      26.774,
+      26.708,
+      26.814
+     ],
+     "median_decode_tok_s": 26.774,
+     "accepted": 414,
+     "proposals": 780
+    },
+    "structured": {
+     "repeats": 3,
+     "decode_tok_s": [
+      33.661,
+      33.742,
+      33.672
+     ],
+     "median_decode_tok_s": 33.672,
+     "accepted": 594,
+     "proposals": 600
+    }
+   },
+   "mean_of_prompt_medians_tok_s": 30.73,
+   "draft_acceptance": 0.763,
+   "serial_mean_decode_tok_s": 22.73,
+   "drafted_equals_serial": {
+    "code": true,
+    "math": true,
+    "prose": true,
+    "structured": true
+   },
+   "peak_reserved_gib": 90.55,
+   "sampler": {
+    "temperature": 0,
+    "top_p": 1,
+    "top_k": 0,
+    "min_p": 0,
+    "repetition_penalty": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0,
+    "seed": 42
+   },
+   "max_new_tokens": 400,
+   "mtp_n": 1
+  },
+  "base": {
+   "prompts": {
+    "code": {
+     "repeats": 3,
+     "decode_tok_s": [
+      31.861,
+      31.847,
+      31.838
+     ],
+     "median_decode_tok_s": 31.847,
+     "accepted": 504,
+     "proposals": 693
+    },
+    "math": {
+     "repeats": 3,
+     "decode_tok_s": [
+      31.676,
+      31.763,
+      31.665
+     ],
+     "median_decode_tok_s": 31.676,
+     "accepted": 507,
+     "proposals": 687
+    },
+    "prose": {
+     "repeats": 3,
+     "decode_tok_s": [
+      31.15,
+      31.087,
+      31.159
+     ],
+     "median_decode_tok_s": 31.15,
+     "accepted": 483,
+     "proposals": 711
+    },
+    "structured": {
+     "repeats": 3,
+     "decode_tok_s": [
+      35.506,
+      35.583,
+      35.573
+     ],
+     "median_decode_tok_s": 35.573,
+     "accepted": 594,
+     "proposals": 603
+    }
+   },
+   "mean_of_prompt_medians_tok_s": 32.56,
+   "draft_acceptance": 0.775,
+   "serial_mean_decode_tok_s": 23.83,
+   "drafted_equals_serial": {
+    "code": true,
+    "math": true,
+    "prose": true,
+    "structured": true
+   },
+   "peak_reserved_gib": 79.69,
+   "sampler": {
+    "temperature": 0,
+    "top_p": 1,
+    "top_k": 0,
+    "min_p": 0,
+    "repetition_penalty": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0,
+    "seed": 42
+   },
+   "max_new_tokens": 400,
+   "mtp_n": 1
+  }
+ }
+}

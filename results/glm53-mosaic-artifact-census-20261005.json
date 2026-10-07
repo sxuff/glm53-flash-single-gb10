@@ -1,0 +1,178 @@
+{
+ "mosaic": {
+  "repo": "0xSero/GLM-5.3-Flash-EXL3-Spark",
+  "revision": "2642851741fc833764e77d03039117be559dc83e",
+  "shards": 12,
+  "tensors": 151554
+ },
+ "base": {
+  "shards": 12,
+  "tensors": 151554,
+  "repo": "turboderp/GLM-5.3-Flash-exl3",
+  "revision": "51058cd551c7e570d87bd32a4adee720edce2349"
+ },
+ "expert_width_totals": {
+  "expert:k2=6": 12,
+  "expert:k2=4": 31
+ },
+ "dense_width_totals": {
+  "dense:k2=8": 46,
+  "dense:k2=6": 3,
+  "head:k2=10": 1,
+  "dense:k2=10": 1,
+  "dense:k2=4": 1
+ },
+ "layers_whose_width_census_differs": {
+  "3": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 8
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 8
+   }
+  },
+  "32": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "33": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "36": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "37": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "38": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "39": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 8
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 8
+   }
+  },
+  "40": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "41": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "42": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  },
+  "43": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 8
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 8
+   }
+  },
+  "44": {
+   "mosaic": {
+    "expert:k2=6": 864,
+    "dense:k2=8": 5
+   },
+   "base": {
+    "expert:k2=4": 864,
+    "dense:k2=8": 5
+   }
+  }
+ },
+ "tensor_names_only_in_mosaic": [],
+ "tensor_names_only_in_base": [],
+ "same_name_shape_or_dtype_differs": 10368,
+ "examples": [
+  "model.language_model.layers.3.mlp.experts.0.down_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.0.gate_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.0.up_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.1.down_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.1.gate_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.1.up_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.10.down_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.10.gate_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.10.up_proj.trellis",
+  "model.language_model.layers.3.mlp.experts.100.down_proj.trellis"
+ ],
+ "mtp_layer45_tensors": 3508,
+ "mtp_layer45_meta_equal_to_base": true,
+ "tensor_bytes_gib": {
+  "mosaic": 89.407,
+  "base": 79.282,
+  "delta": 10.125
+ },
+ "mtp_layer45_byte_compare": {
+  "tensors": 3508,
+  "byte_different": 0
+ },
+ "non_expert_shape_compare": {
+  "tensors": 2946,
+  "shape_different": 0
+ },
+ "pack_total_bytes": 96105136306
+}

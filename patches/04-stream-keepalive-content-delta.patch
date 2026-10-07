@@ -1,0 +1,19 @@
+diff --git a/src/tensorfold/cuda/http.py b/src/tensorfold/cuda/http.py
+index 5ed9c5c..7a44351 100644
+--- a/src/tensorfold/cuda/http.py
++++ b/src/tensorfold/cuda/http.py
+@@ -178,12 +178,13 @@ def make_handler(app: App):
+ 
+                 # A queued or prefilling request writes nothing. An empty chunk every ``keepalive_seconds`` keeps a
+                 # client's idle timer quiet, and a failed one finds the client that left (behind a proxy too).
++                # Chat keep-alives carry an empty content delta: some clients (pi-ai) do not count a bare {} delta as activity.
+                 every = float(getattr(app, "keepalive_seconds", 0) or 0)
+                 done = threading.Event()
+ 
+                 def keepalive() -> None:
+                     while not done.wait(min(1.0, every)):
+-                        if time.monotonic() - written[0] >= every and not emit({}):
++                        if time.monotonic() - written[0] >= every and not emit({"content": ""} if chat else {}):
+                             gone.cancel()
+                             return
+ 

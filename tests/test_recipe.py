@@ -20,7 +20,7 @@ DFLASH_RUNTIME = "d94f44e79aa219d8057e8de21f95360a187ebf41"
 readme = (ROOT / "README.md").read_text()
 for value in (CHECKPOINT_REVISION, TENSORFOLD_COMMIT, IMAGE_SHA, "32.32", "11.63", "2.78×", "28.64"):
     assert value in readme, value
-for name in ("01-exl3-single-gpu-port.patch", "02-serving.patch"):
+for name in ("01-exl3-single-gpu-port.patch", "02-serving.patch", "03-mosaic-mixed-width-experts.patch", "04-stream-keepalive-content-delta.patch"):
     assert hashlib.sha256((ROOT / "patches" / name).read_bytes()).hexdigest() in readme, name
 fixed = json.loads((ROOT / "results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json").read_text())["pooled_matched400"]["greedy"]
 assert round(fixed["tensorfold_mtp"]["pooled_decode_tok_s"], 2) == 32.32
@@ -35,6 +35,25 @@ for name in ("glm53-tensorfold-cache-equivalence-20261004.json", "glm53-tensorfo
     cases = cases["cases"] if isinstance(cases, dict) else cases
     assert cases and all(case["resumed_equals_fresh"] for case in cases), name
 assert (ROOT / "assets/glm53-tensorfold-result-card.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+mosaic = json.loads((ROOT / "results/glm53-mosaic-decode-20261005.json").read_text())
+assert mosaic["model"]["revision"] == "2642851741fc833764e77d03039117be559dc83e"
+assert mosaic["headline_tok_s"] == 30.73 and mosaic["base_same_session_tok_s"] == 32.56
+assert mosaic["ratio_vs_first_deployment"] == 2.64 and mosaic["ratio_vs_base_same_session"] == 0.94
+for arm in ("mosaic", "base"):
+    assert all(mosaic["arms"][arm]["drafted_equals_serial"].values()) and len(mosaic["arms"][arm]["drafted_equals_serial"]) == 4
+for prompt, value in (("code", "30.64"), ("math", "31.82"), ("prose", "26.77"), ("structured", "33.67")):
+    assert f"{mosaic['arms']['mosaic']['prompts'][prompt]['median_decode_tok_s']:.2f}" == value
+    assert f"| {prompt.capitalize()} | {value} tok/s |" in readme, prompt
+for value in ("30.73", "2.64×", "32.56", "0.763", "22.73", "97.6%", "75,041", "2642851741fc833764e77d03039117be559dc83e"):
+    assert value in readme, value
+census = json.loads((ROOT / "results/glm53-mosaic-artifact-census-20261005.json").read_text())
+assert census["mtp_layer45_byte_compare"] == {"tensors": 3508, "byte_different": 0}
+assert sorted(int(k) for k in census["layers_whose_width_census_differs"]) == [3, 32, 33, 36, 37, 38, 39, 40, 41, 42, 43, 44]
+serving = json.loads((ROOT / "results/glm53-mosaic-serving-checks-20261005.json").read_text())
+assert all(c.get("found", c.get("correct")) for c in serving["checks"])
+assert round(serving["agent_session_262k"]["reuse"] * 100, 1) == 97.6
+assert (ROOT / "assets/glm53-mosaic-tensorfold-result-card.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 manifest = json.loads((ROOT / "manifests/glm53-exl3-k2.json").read_text())
 assert manifest["revision"] == MODEL_REVISION
@@ -159,6 +178,8 @@ for directory in (ROOT / "assets", ROOT / "gguf", ROOT / "exllamav3", ROOT / "pa
         if path.is_file() and "__pycache__" not in path.parts and "runtime" not in path.parts and "local" not in path.parts
     )
 all_public = b"\n".join(path.read_bytes() for path in public_files)
+# The mosaic checkpoint's repository ID is needed to reproduce it; it is the one allowed mention.
+all_public = all_public.replace(b"0x" + b"Sero/GLM-5.3-Flash-EXL3-Spark", b"")
 for forbidden in (
     "/home/" + "sxuf",
     "gx10" + "-fe09",

@@ -2,9 +2,36 @@
 
 GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.6.5 behind an OpenAI-compatible endpoint: 262,144-token context, MTP n=1, prompt state reused between turns.
 
+## M288 Mosaic 12L with MTP
+
+![GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10: 30.73 tok/s with TensorFold](assets/glm53-mosaic-tensorfold-result-card.png)
+
+[GLM-5.3-Flash EXL3 M288 Mosaic 12L](https://huggingface.co/0xSero/GLM-5.3-Flash-EXL3-Spark) takes the routed experts of 12 layers (3, 32, 33, 36 to 44) from the 3.05 bpw pack and keeps everything else, including the MTP layer, byte-identical to the 2.05 bpw base. Its model card reports it better than the base on 32 of 32 test rows, +1.94 points of agreement with the full model and 5.9% lower perplexity. Those quality figures come from the model card and were not re-measured here. The model card's runtime serves it at 9 to 10 tok/s without MTP.
+
+The TensorFold port here refused any routed expert that was not 2-bit. [`03-mosaic-mixed-width-experts.patch`](patches/03-mosaic-mixed-width-experts.patch) admits 2-bit and 3-bit experts side by side; the grouped kernel already reads a width per expert. With it the mosaic runs with exact MTP:
+
+- **30.73 tok/s** decode on the same four fixed prompts, 400 tokens, temperature 0, median of 3 runs per prompt. That is **2.64×** the first deployment's 11.63 tok/s and **0.94×** the 2.05 base run in the same session (32.56 tok/s).
+- **Drafted output matched serial token for token on 4 of 4 prompts**, on both the mosaic and the base. Draft acceptance 0.763 against 0.775; serial decode 22.73 against 23.83 tok/s.
+- **+10.1 GiB of weights** (89.4 against 79.3 GiB of tensors). Peak GPU memory reserved at 2,560 slots: 90.55 against 79.69 GiB.
+
+| Prompt | Mosaic | 2.05 base |
+|---|---:|---:|
+| Code | 30.64 tok/s | 31.85 tok/s |
+| Math | 31.82 tok/s | 31.68 tok/s |
+| Prose | 26.77 tok/s | 31.15 tok/s |
+| Structured | 33.67 tok/s | 35.57 tok/s |
+
+Served with vision at 131,072 slots and a 7 GiB host reserve, it found a code planted in a 75,041-token prompt (one run, about 287 tok/s fill) and read a test image correctly; host memory never fell below 11.2 GiB. At 262,144 slots with a 5 GiB reserve it loads with 10.5 GiB free and served a 224-request agent session with 97.6% of prompt tokens resumed from stored state. **Prompts beyond 75K tokens have not been checked on the mosaic.**
+
+Receipts: [decode and exactness](results/glm53-mosaic-decode-20261005.json) · [artifact census](results/glm53-mosaic-artifact-census-20261005.json) · [serving checks](results/glm53-mosaic-serving-checks-20261005.json)
+
+To run it, apply patches 01 to 04 below, download `0xSero/GLM-5.3-Flash-EXL3-Spark` at revision `2642851741fc833764e77d03039117be559dc83e` (96.1 GB), and point the server at it in place of the base checkpoint.
+
+## 2.05 bpw base
+
 ![GLM-5.3 Flash on one NVIDIA GB10: 32.32 tok/s with TensorFold](assets/glm53-tensorfold-result-card.png)
 
-## Measured
+### Measured
 
 - **32.32 tok/s** decode on four fixed prompts, 400 tokens each, temperature 0. The first deployment here measured 11.63 tok/s on the same prompts (**2.78×**), and ExLlamaV3 1.5.2 measured 28.64 tok/s (+12.9%).
 - **26 to 31 tok/s** from a 123-token prompt to a 255,716-token prompt.
@@ -32,7 +59,7 @@ These figures were measured on TensorFold 0.5.0. A recheck on 0.6.5, up to 32,07
 - Container image: `sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee`, built by [`exllamav3/scripts/build-exl152-image.sh`](exllamav3/scripts/build-exl152-image.sh)
 - Environment: `EXL3_INT8_GEMV=2`
 
-Two patches, applied in order from a clone of this repository:
+Patches 01 and 02 serve the 2.05 bpw base. Add 03 for the mosaic. 04 is recommended for both. Apply them in order from a clone of this repository:
 
 ```bash
 git clone https://github.com/ashhart/TensorFold
@@ -40,12 +67,16 @@ cd TensorFold
 git checkout 609ca419abecebdc5a059498a613680bd3aa847f
 git apply ../patches/01-exl3-single-gpu-port.patch
 git apply ../patches/02-serving.patch
+git apply ../patches/03-mosaic-mixed-width-experts.patch
+git apply ../patches/04-stream-keepalive-content-delta.patch
 ```
 
 | Patch | SHA-256 | What it adds |
 |---|---|---|
 | [`01-exl3-single-gpu-port.patch`](patches/01-exl3-single-gpu-port.patch) | `eba18758e5152c378bc698f7fc0a52ff2c6154fc9e53b57df4c9096743f39ea4` | Loads the packed EXL3 checkpoint on one GPU |
 | [`02-serving.patch`](patches/02-serving.patch) | `9137cfdda8d57fa7702179608404c732d3f318dc4266c4fe1ce01d01ab69040d` | The server, the thinking guard, prompt-state reuse, stream keep-alive, and their tests |
+| [`03-mosaic-mixed-width-experts.patch`](patches/03-mosaic-mixed-width-experts.patch) | `6dc8437c9c9c81d13969587bd5a3cdd88a1e62d6b166bb95c283fa089bfe5d80` | Admits 2-bit and 3-bit routed experts in one checkpoint, and a CPU test for the gate |
+| [`04-stream-keepalive-content-delta.patch`](patches/04-stream-keepalive-content-delta.patch) | `629afcadb9bb833975f5995f28e3cf15ac6856ce0bcd038336da7db87daf890b` | Chat keep-alives send `{"content": ""}` instead of `{}`, so clients that ignore empty deltas do not time out during a long fill |
 
 `serving/server.py` runs inside the container and `serving/supervisor.py` starts it. Both still import a memory guard, a loader and a service controller from the host they were written on, and those are not published yet. Until they are, the patches give you the serving code but not a launcher.
 
@@ -55,11 +86,13 @@ git apply ../patches/02-serving.patch
 - Defaults: temperature 0.3, top-p 0.95, min-p 0.05, reasoning effort high, and a new seed for every request that does not send one.
 - Thinking is capped at 3,000 tokens. At the cap the server writes a short closing sentence and the close tag, and the answer is then sampled normally. A run of repeated filler ("Hmm, hmm.") ends thinking the same way.
 - The next turn of a conversation resumes from the stored prompt state. `"prefix_cache": false` on a request fills the prompt again.
-- A streamed request gets an empty chunk every 15 seconds while it waits or fills its prompt. When the client disconnects, the fill stops.
+- A streamed request gets an empty chunk every 15 seconds while it waits or fills its prompt. With patch 04 a chat chunk carries an empty `content` delta. When the client disconnects, the fill stops.
 - `GET /metrics` returns Prometheus counters and histograms. `GET /health` returns the running totals as JSON.
 - Extra request fields: `thinking_budget`, `thinking_loop`, `prefix_cache`, `seed`, `response_format: {"type": "json_object"}`.
 
 ## Limits
+
+- **Set the client's context window to the server's.** A client that assumes a larger window than the server's keeps adding turns until the reply budget left after the prompt is too small, and the answer is cut short.
 
 - **A new prompt fills at about 245 tok/s**, against 356 tok/s for ExLlamaV3. A fresh 86K-token prompt waits 5.8 minutes for its first token and a 256K one 17 minutes.
 - **One request at a time, one conversation stored.** A second conversation replaces the first one's prompt state, so parallel agents fill their whole prompt on every turn.

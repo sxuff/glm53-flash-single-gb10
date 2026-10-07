@@ -1,0 +1,67 @@
+diff --git a/src/tensorfold/families/glm5_next/cuda/weights.py b/src/tensorfold/families/glm5_next/cuda/weights.py
+index 5e099e6..b3c44e6 100644
+--- a/src/tensorfold/families/glm5_next/cuda/weights.py
++++ b/src/tensorfold/families/glm5_next/cuda/weights.py
+@@ -26,6 +26,13 @@ PREFIX = "model.language_model."
+ Projection = Q4 | B16 | Exl3Linear | PlainLinear | ComposedLinear
+ 
+ 
++# Routed-expert widths the packed mul1 path admits, in half-bits: 2-bit (the 2.05bpw base) and 3-bit (layers a
++# mosaic takes from the 3.05bpw pack). The grouped kernel reads a width per expert, so mixing them is a table entry.
++PACKED_EXPERT_K2 = (4, 6)
++# (layer, half-bits) -> expert projections loaded at that width; read back by the loader census
++EXPERT_K2_CENSUS: dict = {}
++
++
+ def bits_of(quant: dict) -> float:
+     """The checkpoint's one bit width (a packed EXL3 encode names a fraction, such as 2.05); a mixed-bit encode
+     (bits such as "mixed_k34_per_tensor") is refused by name."""
+@@ -447,8 +454,11 @@ def load(model_dir: str | Path, *, rank: int, device: str = "cuda", world: int =
+                     if full + ".mul1" not in rd.index:
+                         raise ValueError(f"{full}: packed GLM expects mul1 experts")
+                     tr = rd.get(full + ".trellis").to(dev).contiguous()
+-                    if generic_exl3.k2_of(tr) != 4:
+-                        raise ValueError(f"{full}: expected 2-bit compressed expert")
++                    k2 = generic_exl3.k2_of(tr)
++                    if k2 not in PACKED_EXPERT_K2:
++                        raise ValueError(f"{full}: expert width {k2 / 2} bits is outside the packed GLM "
++                                         f"widths {sorted(k / 2 for k in PACKED_EXPERT_K2)}")
++                    EXPERT_K2_CENSUS[(i, k2)] = EXPERT_K2_CENSUS.get((i, k2), 0) + 1
+                     mats.append((tr, rd.get(full + ".suh"), rd.get(full + ".svh")))
+                 parts.append(mats)
+             ex = generic_exl3.prepare(*parts, "mul1", device=dev)
+diff --git a/tests/cpu/test_glm_mosaic_widths_cpu.py b/tests/cpu/test_glm_mosaic_widths_cpu.py
+new file mode 100644
+index 0000000..bcef7cd
+--- /dev/null
++++ b/tests/cpu/test_glm_mosaic_widths_cpu.py
+@@ -0,0 +1,29 @@
++"""CPU contracts for the packed GLM mosaic widths: 2-bit and 3-bit routed experts admitted, others refused."""
++import torch
++import pytest
++
++from tensorfold.cuda.exl3 import experts as generic_exl3
++from tensorfold.families.glm5_next.cuda import weights
++
++
++def trellis(k2: int) -> torch.Tensor:
++    # [K/16, N/16, 16*K] int16 with K = k2/2 bits; widths only, contents irrelevant
++    return torch.zeros((4, 4, 8 * k2), dtype=torch.int16)
++
++
++def test_admitted_widths_are_two_and_three_bits():
++    assert weights.PACKED_EXPERT_K2 == (4, 6)
++    assert generic_exl3.k2_of(trellis(4)) == 4
++    assert generic_exl3.k2_of(trellis(6)) == 6
++
++
++@pytest.mark.parametrize("k2", [2, 3, 5, 7, 8, 10])
++def test_other_widths_stay_outside_the_packed_profile(k2):
++    assert generic_exl3.k2_of(trellis(k2)) not in weights.PACKED_EXPERT_K2
++
++
++def test_gate_lives_in_loader_source():
++    import inspect
++    src = inspect.getsource(weights)
++    assert "k2 not in PACKED_EXPERT_K2" in src
++    assert "expected 2-bit compressed expert" not in src

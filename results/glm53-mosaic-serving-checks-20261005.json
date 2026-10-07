@@ -1,0 +1,42 @@
+{
+ "status": "complete",
+ "date": "2026-10-05",
+ "serving": {
+  "slots": 131072,
+  "vision": true,
+  "reserve_gib": 7,
+  "note": "checks ran on the 128K serving copy; the published profile is 262,144 slots with a 5 GiB reserve, which has only been loaded and used for an agent session, not depth-checked"
+ },
+ "checks": [
+  {
+   "name": "long_prompt_retrieval",
+   "prompt_tokens": 75041,
+   "planted": "a code one third of the way in",
+   "found": true,
+   "end_to_end_s": 261,
+   "approx_fill_tok_s": 287,
+   "reply_tokens": 26,
+   "runs": 1
+  },
+  {
+   "name": "image",
+   "task": "which colour is on which side of a red/blue split image",
+   "correct": true,
+   "seconds": 3.8,
+   "runs": 1
+  }
+ ],
+ "host_memory": {
+  "available_after_load_gib": 11.97,
+  "lowest_available_mib_during_checks": 11458,
+  "samples": 264
+ },
+ "agent_session_262k": {
+  "requests": 224,
+  "prompt_tokens": 22228940,
+  "prompt_tokens_from_stored_state": 21685754,
+  "reuse": 0.9756,
+  "stream_idle_timeouts_after_keepalive_patch": 0,
+  "available_after_load_gib": 10.47
+ }
+}
