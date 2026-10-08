@@ -1,16 +1,18 @@
-# GLM-5.3 Flash EXL3 on one NVIDIA GB10
+# GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10
 
-GLM-5.3 Flash EXL3 2.05 bpw on one NVIDIA GB10, served by TensorFold 0.6.5 behind an OpenAI-compatible endpoint: 262,144-token context, MTP n=1, prompt state reused between turns.
-
-## M288 Mosaic 12L with MTP
+0xSero's GLM-5.3 Flash M288 Mosaic 12L (EXL3, 2.05 bpw with 12 layers of 3-bit experts) on one NVIDIA GB10, served by TensorFold 0.6.5 with exact MTP behind an OpenAI-compatible endpoint: 30.73 tok/s, 262,144-token context, vision, prompt state reused between turns.
 
 ![GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10: 30.73 tok/s with TensorFold](assets/glm53-mosaic-tensorfold-result-card.png)
 
+## What it is
+
 0xSero's [GLM-5.3-Flash EXL3 M288 Mosaic 12L](https://huggingface.co/0xSero/GLM-5.3-Flash-EXL3-Spark) takes the routed experts of 12 layers (3, 32, 33, 36 to 44) from the 3.05 bpw pack and keeps everything else, including the MTP layer, byte-identical to the 2.05 bpw base. 0xSero reports it better than the base on 32 of 32 test rows, +1.94 points of agreement with the full model and 5.9% lower perplexity. Those quality figures are 0xSero's and were not re-measured here. 0xSero's own runtime serves it at 9 to 10 tok/s without MTP.
 
-The TensorFold port here refused any routed expert that was not 2-bit. [`03-mosaic-mixed-width-experts.patch`](patches/03-mosaic-mixed-width-experts.patch) admits 2-bit and 3-bit experts side by side; the grouped kernel already reads a width per expert. With it the mosaic runs with exact MTP:
+## Measured
 
-- **30.73 tok/s** decode on the same four fixed prompts, 400 tokens, temperature 0, median of 3 runs per prompt. That is **2.64×** the first deployment's 11.63 tok/s and **0.94×** the 2.05 base run in the same session (32.56 tok/s).
+The TensorFold port refused any routed expert that was not 2-bit. [`03-mosaic-mixed-width-experts.patch`](patches/03-mosaic-mixed-width-experts.patch) admits 2-bit and 3-bit experts side by side; the grouped kernel already reads a width per expert. With it the mosaic runs with exact MTP:
+
+- **30.73 tok/s** decode on four fixed prompts, 400 tokens, temperature 0, median of 3 runs per prompt. That is **2.64×** the [first deployment](exllamav3/results/glm53-phase0-2026-09-22.md)'s 11.63 tok/s and **0.94×** the 2.05 base run in the same session (32.56 tok/s).
 - **Drafted output matched serial token for token on 4 of 4 prompts**, on both the mosaic and the base. Draft acceptance 0.763 against 0.775; serial decode 22.73 against 23.83 tok/s.
 - **+10.1 GiB of weights** (89.4 against 79.3 GiB of tensors). Peak GPU memory reserved at 2,560 slots: 90.55 against 79.69 GiB.
 
@@ -25,41 +27,14 @@ Served with vision at 131,072 slots and a 7 GiB host reserve, it found a code pl
 
 Receipts: [decode and exactness](results/glm53-mosaic-decode-20261005.json) · [artifact census](results/glm53-mosaic-artifact-census-20261005.json) · [serving checks](results/glm53-mosaic-serving-checks-20261005.json)
 
-To run it, apply patches 01 to 04 below, download `0xSero/GLM-5.3-Flash-EXL3-Spark` at revision `2642851741fc833764e77d03039117be559dc83e` (96.1 GB), and point the server at it in place of the base checkpoint.
-
-## 2.05 bpw base
-
-![GLM-5.3 Flash on one NVIDIA GB10: 32.32 tok/s with TensorFold](assets/glm53-tensorfold-result-card.png)
-
-### Measured
-
-- **32.32 tok/s** decode on four fixed prompts, 400 tokens each, temperature 0. The first deployment here measured 11.63 tok/s on the same prompts (**2.78×**), and ExLlamaV3 1.5.2 measured 28.64 tok/s (+12.9%).
-- **26 to 31 tok/s** from a 123-token prompt to a 255,716-token prompt.
-- **2.1 s** to the first token of the next turn on an 11,272-token conversation, against 47.6 s when the prompt is filled again. The 1,321-token reply was identical either way.
-
-| Prompt tokens | Decode | Planted codes found |
-|---:|---:|---:|
-| 123 | 30.0 tok/s | 5 / 5 |
-| 7,965 | 30.2 tok/s | 5 / 5 |
-| 32,078 | 29.0 tok/s | 5 / 5 |
-| 86,068 | 28.5 tok/s | 5 / 5 |
-| 130,502 | 30.6 tok/s | 5 / 5 |
-| 255,716 | 26.2 tok/s | 5 / 5 |
-
-Each row is one conversation: a document with five planted six-digit codes, then three 512-token turns at temperature 0.
-
-Receipts: [decode against ExLlamaV3](results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json) · [prompt sizes](results/glm53-tensorfold-depth-check-20261004.json) · [prompt-state reuse](results/glm53-tensorfold-cache-equivalence-20261004.json) and [long replies](results/glm53-tensorfold-cache-equivalence-long-replies-20261004.json) · [first deployment](exllamav3/results/glm53-phase0-2026-09-22.md)
-
-These figures were measured on TensorFold 0.5.0. A recheck on 0.6.5, up to 32,078 prompt tokens, came within 2%.
-
 ## Recipe
 
-- Checkpoint: `turboderp/GLM-5.3-Flash-exl3`, revision `51058cd551c7e570d87bd32a4adee720edce2349`, 2.05 bpw
+- Checkpoint: `0xSero/GLM-5.3-Flash-EXL3-Spark`, revision `2642851741fc833764e77d03039117be559dc83e` (96.1 GB, 12 shards)
 - TensorFold: `https://github.com/ashhart/TensorFold`, tag `v0.6.5`, commit `609ca419abecebdc5a059498a613680bd3aa847f`
 - Container image: `sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee`, built by [`exllamav3/scripts/build-exl152-image.sh`](exllamav3/scripts/build-exl152-image.sh)
 - Environment: `EXL3_INT8_GEMV=2`
 
-Patches 01 and 02 serve the 2.05 bpw base. Add 03 for the mosaic. 04 is recommended for both. Apply them in order from a clone of this repository:
+Four patches, applied in order from a clone of this repository:
 
 ```bash
 git clone https://github.com/ashhart/TensorFold
@@ -82,7 +57,7 @@ git apply ../patches/04-stream-keepalive-content-delta.patch
 
 ## Serving profile
 
-- Prompts up to 257,920 tokens, replies up to 16,384.
+- 262,144 slots, vision on, 5 GiB host reserve. Prompts up to 257,920 tokens, replies up to 16,384.
 - Defaults: temperature 0.3, top-p 0.95, min-p 0.05, reasoning effort high, and a new seed for every request that does not send one.
 - Thinking is capped at 3,000 tokens. At the cap the server writes a short closing sentence and the close tag, and the answer is then sampled normally. A run of repeated filler ("Hmm, hmm.") ends thinking the same way.
 - The next turn of a conversation resumes from the stored prompt state. `"prefix_cache": false` on a request fills the prompt again.
@@ -93,21 +68,21 @@ git apply ../patches/04-stream-keepalive-content-delta.patch
 ## Limits
 
 - **Set the client's context window to the server's.** A client that assumes a larger window than the server's keeps adding turns until the reply budget left after the prompt is too small, and the answer is cut short.
-
-- **A new prompt fills at about 245 tok/s**, against 356 tok/s for ExLlamaV3. A fresh 86K-token prompt waits 5.8 minutes for its first token and a 256K one 17 minutes.
+- **A new prompt fills at about 290 tok/s.** A fresh 75K-token prompt waited 261 s; a 256K one would take about 15 minutes. Turns that resume stored state start in seconds.
 - **One request at a time, one conversation stored.** A second conversation replaces the first one's prompt state, so parallel agents fill their whole prompt on every turn.
-- **Recall at 2.05 bpw is unreliable.** The model can state a formula wrongly and then keep re-deriving it. The thinking cap bounds that; it does not make the answer right.
+- **Exact recall is still a weak spot.** In a long agent session the mosaic stated two Kerr-metric formulas wrongly and re-ran the same failing check until the client's repeat guard stopped it. The thinking cap bounds deliberation; it does not make the answer right.
 - **`max_tokens` below 1,053 is refused** while the thinking guard is on. Send `"thinking_loop": {"enabled": false}` with small caps.
 - **A turn that switches thinking off** fills its whole prompt again.
-- At depth, only retrieval of planted codes was checked. Each prompt size was run once.
+- **Prompts beyond 75K tokens have not been checked on the mosaic.** The 75K retrieval and image checks ran once each, on a 131,072-slot copy.
 
 ## Checks
 
-`serving/cpu_json.py`, `serving/cpu_prepare.py` and the landing suites under `tests/` run the request handling, prompt fill and state reuse on CPU with the checkpoint's tokenizer: 31, 12 and 146 tests pass on the patched tree. `serving/cache_equivalence.py` and `serving/depth_check.py` are the two live checks behind the numbers above.
+`serving/cpu_json.py`, `serving/cpu_prepare.py` and the landing suites under `tests/` run the request handling, prompt fill and state reuse on CPU with the checkpoint's tokenizer: 31, 12 and 146 tests pass on the patched tree. `tests/cpu/test_glm_mosaic_widths_cpu.py` (patch 03) checks the expert width gate; with the port's contracts, 38 tests pass on the fully patched tree. `serving/cache_equivalence.py` and `serving/depth_check.py` are the live checks.
 
 ## Earlier lanes
 
-- [`exllamav3/`](exllamav3/README.md): TabbyAPI with exllamav3 1.5.2 on the same checkpoint. It has a packaged launcher and fills prompts faster.
+- 2.05 bpw base (`turboderp/GLM-5.3-Flash-exl3`, revision `51058cd551c7e570d87bd32a4adee720edce2349`): the previous recipe on the same patches, superseded by the mosaic. Its receipts stay in `results/`: [decode against ExLlamaV3](results/glm53-tabby-vs-tensorfold-fixed-work-20261001.json), [prompt sizes](results/glm53-tensorfold-depth-check-20261004.json), [prompt-state reuse](results/glm53-tensorfold-cache-equivalence-20261004.json) and [long replies](results/glm53-tensorfold-cache-equivalence-long-replies-20261004.json).
+- [`exllamav3/`](exllamav3/README.md): TabbyAPI with exllamav3 1.5.2 on the 2.05 bpw checkpoint. It has a packaged launcher and fills prompts faster.
 - [`gguf/`](gguf/README.md): llama.cpp with a DFlash2 drafter.
 - `scripts/`, `systemd/`, `manifests/` and the three older files in `results/`: the first EXL3-K2 recipe.
 

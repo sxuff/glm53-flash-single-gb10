@@ -18,7 +18,7 @@ TARGET_REVISION = "2975ab414d30340466d8c51533c6e91f0cca64c1"
 DFLASH_RUNTIME = "d94f44e79aa219d8057e8de21f95360a187ebf41"
 
 readme = (ROOT / "README.md").read_text()
-for value in (CHECKPOINT_REVISION, TENSORFOLD_COMMIT, IMAGE_SHA, "32.32", "11.63", "2.78×", "28.64"):
+for value in (CHECKPOINT_REVISION, TENSORFOLD_COMMIT, IMAGE_SHA, "11.63", "glm53-tabby-vs-tensorfold-fixed-work-20261001.json", "glm53-tensorfold-depth-check-20261004.json"):
     assert value in readme, value
 for name in ("01-exl3-single-gpu-port.patch", "02-serving.patch", "03-mosaic-mixed-width-experts.patch", "04-stream-keepalive-content-delta.patch"):
     assert hashlib.sha256((ROOT / "patches" / name).read_bytes()).hexdigest() in readme, name
@@ -29,12 +29,13 @@ depth = json.loads((ROOT / "results/glm53-tensorfold-depth-check-20261004.json")
 assert depth["status"] == "complete" and len(depth["depths"]) == 6
 for row in depth["depths"]:
     assert row["needles_correct"] == row["needles_total"] == 5
-    assert f"| {row['prompt_tokens']:,} | {row['decode_tok_s_weighted']:.1f} tok/s | 5 / 5 |" in readme, row["prompt_tokens"]
 for name in ("glm53-tensorfold-cache-equivalence-20261004.json", "glm53-tensorfold-cache-equivalence-long-replies-20261004.json"):
     cases = json.loads((ROOT / "results" / name).read_text())
     cases = cases["cases"] if isinstance(cases, dict) else cases
     assert cases and all(case["resumed_equals_fresh"] for case in cases), name
-assert (ROOT / "assets/glm53-tensorfold-result-card.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+assert not (ROOT / "assets/glm53-tensorfold-result-card.png").exists()
+assert readme.startswith("# GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10")
+assert "## 2.05 bpw base" not in readme and "32.32" not in readme
 
 mosaic = json.loads((ROOT / "results/glm53-mosaic-decode-20261005.json").read_text())
 assert mosaic["model"]["revision"] == "2642851741fc833764e77d03039117be559dc83e"
