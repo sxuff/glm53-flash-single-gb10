@@ -1,4 +1,4 @@
 # The patches and TensorFold receipts are stored byte for byte: the README quotes the patch checksums.
-patches/*.patch -text
+patches/*.patch -text -whitespace
 results/glm53-tensorfold-* -text
 results/glm53-tabby-vs-tensorfold-* -text

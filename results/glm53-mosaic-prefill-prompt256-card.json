@@ -1,0 +1,54 @@
+{
+  "card": "assets/glm53-mosaic-prefill-prompt256-result-card.png",
+  "sha256": "2065c15cf62c2edbed54b28a6168b8a876c9b9fb4a899574cc1f4d431489a226",
+  "width_px": 1240,
+  "height_px": 650,
+  "source_receipt": "results/glm53-mosaic-prefill-prompt256-20261012.json",
+  "rows": [
+    {
+      "id": "fresh-32000-code",
+      "display_values": [
+        "32K code",
+        "149.49",
+        "128.77",
+        "214",
+        "248",
+        "+16.1%"
+      ]
+    },
+    {
+      "id": "fresh-32000-prose",
+      "display_values": [
+        "32K prose",
+        "149.72",
+        "128.87",
+        "214",
+        "248",
+        "+16.2%"
+      ]
+    },
+    {
+      "id": "fresh-64000-code",
+      "display_values": [
+        "61.6K code",
+        "293.20",
+        "251.96",
+        "210",
+        "244",
+        "+16.4%"
+      ]
+    },
+    {
+      "id": "fresh-64000-prose",
+      "display_values": [
+        "63.1K prose",
+        "294.64",
+        "254.16",
+        "214",
+        "248",
+        "+15.9%"
+      ]
+    }
+  ],
+  "disclaimer": "One pass, first-sample-inclusive proxy, no page-cold claim; two strict serving checks failed in both arms; experimental only."
+}

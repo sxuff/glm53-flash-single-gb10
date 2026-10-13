@@ -1,0 +1,69 @@
+--- a/src/tensorfold/families/glm5_next/cuda/forward.py
++++ b/src/tensorfold/families/glm5_next/cuda/forward.py
+@@ -17,6 +17,7 @@
+ 
+ from . import exl3_generic, glue, kda as kda_mod, latent, prof, qmm, sparse, packed
+ from .prefill import routed_micro_windows
++from .prompt_policy import routed_window_rows
+ from tensorfold.cuda.exl3 import experts as generic_exl3
+ from .attention import AttnScratch, attention, kv_write
+ from .weights import LayerW, Weights
+@@ -108,10 +109,10 @@
+         if c.quant == "exl3":            # EXL3 routed experts, and the shared expert as a BF16 MLP
+             sl = c.shared_width // w.world
+             if w.meta.get("packed_exl3"):
+-                # packed TP1: a prompt chunk's routed experts run in windows of up to 128 rows, copied into ey
++                # Prompt role only: selected256-row expert batches; ordinary/verification scratch unchanged.
+                 ex = next((l.moe.experts for l in w.layers if l.moe is not None),
+                           w.mtp.layer.moe.experts if w.mtp is not None else None)
+-                self.exl3 = generic_exl3.Scratch(ex, min(rows, 128), slots, device=dev) if ex is not None else None
++                self.exl3 = generic_exl3.Scratch(ex, routed_window_rows(rows, prefill=prefill), slots, device=dev) if ex is not None else None
+                 self.ey = torch.empty((rows, slots, D), dtype=f32, device=dev)
+             else:
+                 shape = SimpleNamespace(dims=D, width=ml, count=c.experts)
+--- a/src/tensorfold/families/glm5_next/cuda/packed.py
++++ b/src/tensorfold/families/glm5_next/cuda/packed.py
+@@ -10,6 +10,7 @@
+ import re
+ import torch
+ from tensorfold.cuda.exl3.linear import Exl3Linear
++from .prompt_policy import routed_window_rows
+ 
+ 
+ @dataclass
+@@ -214,15 +215,16 @@
+     slots=cfg.top_k+1
+     gu=default_config(D,I,True)
+     down=default_config(I,D,False)
+-    def one(r):
+-        r=min(r,128)
+-        projection=r*(2*kmax+8*kmax+8*nmax+4*zmax)
+-        P=r*slots
++    def one(r, prompt=False):
++        pr=min(r,128)  # Packed dense/PlainLinear staging stays identical.
++        er=routed_window_rows(r,prefill=prompt)
++        projection=pr*(2*kmax+8*kmax+8*nmax+4*zmax)
++        P=er*slots
+         U=min(P,E)
+-        routed=P*(4*D+2*I+4*max(2*gu[2]*I,down[2]*D)+4*D)+4*U+4+4*U*r
++        routed=P*(4*D+2*I+4*max(2*gu[2]*I,down[2]*D)+4*D)+4*U+4+4*U*er
+         return projection+routed
+     mtp_rows = rows if load_mtp and cfg.mtp_layers else 0
+     # Existing geometry budgets BF16 x. Every Buffers instance now has FP32 x,
+     # including the otherwise unused MTP x. Carrier rows are NOT microchunked.
+     carrier_delta = (rows + prefill_rows + mtp_rows) * cfg.streams * D * 2
+-    return one(rows)+one(prefill_rows)+(one(rows) if mtp_rows else 0)+carrier_delta
++    return one(rows)+one(prefill_rows,prompt=True)+(one(rows) if mtp_rows else 0)+carrier_delta
+--- a/src/tensorfold/families/glm5_next/cuda/prompt_policy.py
++++ b/src/tensorfold/families/glm5_next/cuda/prompt_policy.py
+@@ -0,0 +1,10 @@
++"""Owned prompt-role batching policy. Generic kernels and reduction plans unchanged."""
++import os
++def enabled():
++ value=os.environ.get('GLM_PROMPT_WIDE','0')
++ if value not in ('0','1'):raise ValueError('GLM_PROMPT_WIDE must be explicit0 or1')
++ return value=='1'
++def prompt_rows():return 256 if enabled() else 128
++def routed_window_rows(rows,*,prefill):
++ if type(prefill) is not bool or type(rows) is not int or rows<1:raise ValueError('Explicit role and positive capacity required')
++ return min(rows,256 if prefill and enabled() else 128)

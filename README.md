@@ -27,6 +27,14 @@ Served with vision at 131,072 slots and a 7 GiB host reserve, it found a code pl
 
 Receipts: [decode and exactness](results/glm53-mosaic-decode-20261005.json) · [artifact census](results/glm53-mosaic-artifact-census-20261005.json) · [serving checks](results/glm53-mosaic-serving-checks-20261005.json)
 
+## Experimental fresh-prefill improvement
+
+An optional prompt-only 256-row treatment improved fresh 32K/~64K prefill by **15.93–16.37%** in a one-pass matched screen at 262,144 slots. All six decode changes stayed within 1%, and all 20 primary token streams matched. Rates include the first sample, not isolated GPU prefill. Two strict serving checks failed identically in both arms, so **full qualification remains indeterminate and the default recipe below is unchanged**.
+
+![GLM Mosaic: fresh-prefill TTFT and throughput before and after prompt-only 256-row batching](assets/glm53-mosaic-prefill-prompt256-result-card.png)
+
+[Experiment, integration and every decode cell](experiments/prompt256/README.md) · [measured receipt](results/glm53-mosaic-prefill-prompt256-20261012.json) · [optional patch](patches/05-experimental-prompt256.patch)
+
 ## Recipe
 
 - Checkpoint: `0xSero/GLM-5.3-Flash-EXL3-Spark`, revision `2642851741fc833764e77d03039117be559dc83e` (96.1 GB, 12 shards)
