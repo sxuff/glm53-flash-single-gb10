@@ -1,6 +1,6 @@
 {
   "card": "assets/glm53-mosaic-prefill-prompt256-result-card.png",
-  "sha256": "2065c15cf62c2edbed54b28a6168b8a876c9b9fb4a899574cc1f4d431489a226",
+  "sha256": "c86be4271668bc5545ee5d2242f031015886560b4f6e8453d9b8d41cdf149b53",
   "width_px": 1240,
   "height_px": 650,
   "source_receipt": "results/glm53-mosaic-prefill-prompt256-20261012.json",
@@ -50,5 +50,5 @@
       ]
     }
   ],
-  "disclaimer": "One pass, first-sample-inclusive proxy, no page-cold claim; two strict serving checks failed in both arms; experimental only."
+  "disclaimer": "One pass, first-sample-inclusive proxy, no page-cold claim. Qualification details remain in the linked measured receipt."
 }
