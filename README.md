@@ -35,6 +35,12 @@ An optional prompt-only 256-row treatment improved fresh 32K/~64K prefill by **1
 
 [Experiment, integration and every decode cell](experiments/prompt256/README.md) · [measured receipt](results/glm53-mosaic-prefill-prompt256-20261012.json) · [optional patch](patches/05-experimental-prompt256.patch)
 
+## Experimental: up to three MTP drafts a round
+
+**Not measured on a GB10.** The server drafts one token a round. TensorFold's own GLM decoder drafts up to three, adapting the depth to how often drafts are accepted. A verify pass reads about 5.5 GB that every row shares and about 2.0 GB per extra row, so a byte-count model that reproduces the measured one-draft rates puts three drafts at up to about 47 tok/s on structured output (from 33.67) and 36 to 38 on math (from 31.82). Prose would lose, so it stays at one draft. These are upper bounds.
+
+[`06-experimental-mtp-depth.patch`](patches/06-experimental-mtp-depth.patch) adds `mtp_drafts` and `mtp_depth` to `serving/serving_defaults.json`. The default of one draft serves exactly as before. More drafts also need the unpublished loader to allocate 4-row decode buffers; the server refuses to start otherwise. CPU tests cover exactness against serial decoding, the thinking guard and the output cap. [Experiment notes, loader change and what to measure](experiments/mtp-depth/README.md)
+
 ## Recipe
 
 - Checkpoint: `0xSero/GLM-5.3-Flash-EXL3-Spark`, revision `2642851741fc833764e77d03039117be559dc83e` (96.1 GB, 12 shards)
