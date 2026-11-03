@@ -1,0 +1,415 @@
+diff --git a/serving/server.py b/serving/server.py
+index 00806bbd..9c65ecee 100644
+--- a/serving/server.py
++++ b/serving/server.py
+@@ -13,6 +13,8 @@ RESERVE_GIB=15
+ # 3.42 GiB above that; 3.5 GiB is added here. An estimate until this copy's own peak is measured.
+ PEAK_ESTIMATE=87306534912+3758096384
+ LANDING_TEXT="I'll stop deliberating here, go with the most likely form, and proceed. Anything unverified I'll check with tools or flag."
++# MTP drafts a round, from serving_defaults.json. One is the measured recipe; main() captures verify graphs up to MTP_DRAFTS+1 rows.
++MTP_DRAFTS=1;MTP_DEPTH='auto'
+ 
+ def import_path(name,path):
+  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);sys.modules[name]=m;spec.loader.exec_module(m);return m
+@@ -47,9 +49,29 @@ def cached_prefill(runtime,prompt,sampling,image,use_cache,cancelled):
+  if not image:cache.keep(api.take_snapshot(e,prompt,e.last_hidden if mtp else None,mtp=mtp))
+  return first,(len(hit.ids) if hit is not None else 0)
+ 
++def depth_policy(api,sampling):
++ """None drafts one token a round. Otherwise upstream's GLM policy: a greedy round chains up to MTP_DRAFTS drafts while
++ their joint confidence stays above 0.35, and a sampled one adapts 1 to 3 drafts to the running acceptance.
++ MTP_DEPTH 'fixed' always asks for MTP_DRAFTS."""
++ if MTP_DRAFTS==1:return None
++ if MTP_DEPTH=='fixed':return api.DepthPolicy(MTP_DRAFTS,fixed=True)
++ if sampling is None or sampling.temperature<=0:return api.DepthPolicy(MTP_DRAFTS,fixed=True,confidence=0.35)
++ return api.DepthPolicy(MTP_DRAFTS,low=0.6,high=0.85)
++
++def draft_count(e,policy,left,room,pending):
++ """This round's drafts: the policy's depth, cut so the verify window fits the output cap and the main cache, and the
++ chained drafts the MTP cache. With one draft it is the v53 condition. next(0,0) reads the depth without updating it;
++ each drafted round updates it once with its own counts (see learn)."""
++ want=policy.next(0,0) if policy is not None else 1
++ return max(0,min(want,left-1,room-1,e.st.capacity-e.st.mtp_len-len(pending)+1))
++
++def learn(policy,drafted,accepted):
++ if policy is not None and drafted:policy.next(drafted,accepted)
++
+ def _generate_unmodified(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,image=False,prefix_cache=True,cancelled=None):
+  e,tok,torch,api,Sampling,scratch,forward,hooks,admission=runtime
+  guard=hooks.guard;out=[];rounds=proposals=accepted=0;start=time.perf_counter();stamps=[]
++ policy=depth_policy(api,sampling);depths=collections.Counter()
+  with torch.inference_mode():
+   guard('http_request_start');torch.cuda.synchronize()
+   first,cached=cached_prefill(runtime,prompt,sampling,image,prefix_cache,cancelled);out.append(first);torch.cuda.synchronize();stamps.append(time.perf_counter())
+@@ -57,20 +79,23 @@ def _generate_unmodified(runtime,prompt,count,sampling,on_tokens,draft=True,stop
+   while len(out)<count and not stop and not(stop_eos and out[-1] in e.w.cfg.eos):
+    guard('http_each_decode');room=e.st.capacity-e.st.pos
+    if room<1:raise ValueError('No cache headroom')
+-   use=draft and not image and count-len(out)>=2 and room>=2 and e.st.mtp_len+len(pending)<=e.st.capacity
+-   ds=api.draft(e,hidden,pending,e.st.pos+1,1,sampling) if use else []
++   n=draft_count(e,policy,count-len(out),room,pending) if draft and not image else 0
++   ds=api.draft(e,hidden,pending,e.st.pos+1,n,sampling,policy.confidence if policy else 0.0) if n else []
++   proposal_count=len(ds)
+    ts=e.verify_window([out[-1]]+ds);ds=ts[1:];R=len(ts);y=e.forward(ts);torch.cuda.synchronize()
+    sampled=e.sample(y[:R],[e.st.pos+1+r for r in range(R)],sampling)
+-   keep=1+int(bool(ds) and sampled[0]==ds[0] and not(stop_eos and sampled[0] in e.w.cfg.eos))
++   # Keep the pending token and every draft its target row sampled, through the first miss or EOS.
++   keep=1
++   while keep<=len(ds) and sampled[keep-1]==ds[keep-1] and not(stop_eos and sampled[keep-1] in e.w.cfg.eos):keep+=1
+    pos=e.st.pos;api.commit(e.w,e.st,e.buf,R,keep)
+    if e.st.pos!=pos+keep:raise ValueError('Commit advance mismatch')
+-   rounds+=1;proposals+=len(ds);accepted+=keep-1
++   rounds+=1;proposals+=len(ds);accepted+=keep-1;depths[proposal_count]+=1;learn(policy,len(ds),keep-1)
+    pending=sampled[:keep];e.follow(pending);out.extend(pending);torch.cuda.synchronize();stamps.append(time.perf_counter())
+    stop=bool(on_tokens(pending));hidden=scratch[:keep];hidden.copy_(e.main_hidden(slice(0,keep)))
+   guard('http_request_finished')
+  if len(out)>count:raise ValueError('Output cap overshoot')
+  ttft=stamps[0]-start;decode=stamps[-1]-stamps[0]
+- return dict(cached=cached,prefill_s=ttft,decode_s=decode,decode_tok_s=(len(out)-1)/decode if decode else None,rounds=rounds,drafted=proposals,accepted=accepted,mtp_n=0 if image else 1,graphs=e.graphs is not None,vision=image,cache_slots=e.st.capacity,sparse_graph_replays=dict(e.replays),peak_reserved=torch.cuda.max_memory_reserved(),sampling=dataclasses.asdict(sampling) if sampling is not None else None)
++ return dict(cached=cached,prefill_s=ttft,decode_s=decode,decode_tok_s=(len(out)-1)/decode if decode else None,rounds=rounds,drafted=proposals,accepted=accepted,draft_depths=dict(sorted(depths.items())),mtp_n=0 if image else 1,graphs=e.graphs is not None,vision=image,cache_slots=e.st.capacity,sparse_graph_replays=dict(e.replays),peak_reserved=torch.cuda.max_memory_reserved(),sampling=dataclasses.asdict(sampling) if sampling is not None else None)
+ 
+ def initial_thinking(tok,prompt):
+  # Only the final assistant suffix, not reasoning in old messages.
+@@ -110,6 +135,7 @@ def _generate(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,i
+  start=time.perf_counter();old=getattr(e,'thinking_landing',None);old_window=getattr(e,'window',None)
+  e.thinking_landing=landing_state
+  mtp_enabled=draft and not image
++ policy=depth_policy(api,sampling);depths=collections.Counter()
+  def requires_serial(state):
+   # A natural close cancels a triggered grace/landing phase. A historical
+   # trigger alone must not suppress MTP forever after its queue is gone.
+@@ -135,7 +161,7 @@ def _generate(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,i
+     if room<1:raise ValueError('No cache headroom')
+     serial=requires_serial(landing_state)
+     if serial:was_serial=True
+-    use=mtp_enabled and not serial and count-len(out)>=2 and room>=2 and e.st.mtp_len+len(pending)<=e.st.capacity
++    n=draft_count(e,policy,count-len(out),room,pending) if mtp_enabled and not serial else 0;use=n>0
+     if use and was_serial:mtp_resumes+=1;was_serial=False
+     if mtp_enabled:
+      # Actual api.draft(count=0) calls absorb(): it rolls back mtp_drafted
+@@ -143,7 +169,7 @@ def _generate(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,i
+      # sampling any proposal. Keeping this synchronized during the serial phase
+      # reseeds every forced phrase/close/header row before MTP resumes.
+      if e.st.mtp_len-e.st.mtp_drafted+len(pending)>e.st.capacity:raise ValueError('No MTP cache headroom')
+-     ds=api.draft(e,hidden,pending,e.st.pos+1,1 if use else 0,sampling)
++     ds=api.draft(e,hidden,pending,e.st.pos+1,n,sampling,policy.confidence if policy else 0.0)
+      if e.st.mtp_len-e.st.mtp_drafted!=e.st.pos:raise ValueError('MTP committed-prefix alignment mismatch')
+     else:ds=[]
+     proposal_count=len(ds)
+@@ -153,18 +179,22 @@ def _generate(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,i
+     # window once before sampling separate rows; never mutate graph outputs.
+     if e.constraint is not None and e.window is not None:
+      y=y.float().clone();e.constraint.mask(y,e.window,e.w.vocab_offset);e.window=None
+-    first=e.sample(y[:1],[e.st.pos+1],sampling)[0];sampled=[first];keep=1
+-    if ds and first==ds[0] and not(stop_eos and first in e.w.cfg.eos):
+-     snapshot=landing_state.simulation();observe(snapshot,first)
++    first=e.sample(y[:1],[e.st.pos+1],sampling)[0];sampled=[first];keep=1;snapshot=None
++    # Each accepted draft extends one simulation, and the next target row is sampled under it. The window stops at
++    # the first miss, at EOS, and before any row that would follow a reasoning boundary, a trigger or a stop.
++    while keep<=len(ds) and sampled[-1]==ds[keep-1] and not(stop_eos and sampled[-1] in e.w.cfg.eos):
++     if snapshot is None:snapshot=landing_state.simulation()
++     observe(snapshot,sampled[-1])
+      boundary=(snapshot.closed!=landing_state.closed or snapshot.trigger!=landing_state.trigger)
+-     if not boundary and not requires_serial(snapshot) and not snapshot.should_stop and count-len(out)>=2:
+-      try:
+-       e.thinking_landing=snapshot
+-       sampled.extend(e.sample(y[1:2],[e.st.pos+2],sampling));keep=2
+-      finally:e.thinking_landing=landing_state
++     if boundary or requires_serial(snapshot) or snapshot.should_stop or count-len(out)<keep+1:break
++     try:
++      e.thinking_landing=snapshot
++      sampled.extend(e.sample(y[keep:keep+1],[e.st.pos+1+keep],sampling));keep+=1
++     finally:e.thinking_landing=landing_state
+     pos=e.st.pos;api.commit(e.w,e.st,e.buf,R,keep)
+     if e.st.pos!=pos+keep:raise ValueError('Commit advance mismatch')
+     rounds+=1;proposals+=proposal_count;accepted+=keep-1;serial_rounds+=int(not proposal_count)
++    depths[proposal_count]+=1;learn(policy,len(ds),keep-1)
+     pending=sampled[:keep];e.follow(pending);stop=emit(pending)
+     if mtp_enabled:hidden=scratch[:keep].copy_(e.main_hidden(slice(0,keep)))
+    guard('http_request_finished')
+@@ -172,7 +202,7 @@ def _generate(runtime,prompt,count,sampling,on_tokens,draft=True,stop_eos=True,i
+   e.thinking_landing=old;e.window=old_window
+  if len(out)>count:raise ValueError('Output cap overshoot')
+  ttft=stamps[0]-start;decode=stamps[-1]-stamps[0]
+- return dict(cached=cached,prefill_s=ttft,decode_s=decode,decode_tok_s=(len(out)-1)/decode if decode else None,rounds=rounds,drafted=proposals,accepted=accepted,serial_rounds=serial_rounds,mtp_resumes=mtp_resumes,mtp_n=int(mtp_enabled),graphs=e.graphs is not None,vision=image,cache_slots=e.st.capacity,sparse_graph_replays=dict(e.replays),peak_reserved=torch.cuda.max_memory_reserved(),sampling=dataclasses.asdict(sampling) if sampling is not None else None,thinking_loop=landing_state.metadata(),stop_reason=landing_state.termination_reason,thinking_decode='mtp-target-with-protected-serial-landing')
++ return dict(cached=cached,prefill_s=ttft,decode_s=decode,decode_tok_s=(len(out)-1)/decode if decode else None,rounds=rounds,drafted=proposals,accepted=accepted,draft_depths=dict(sorted(depths.items())),serial_rounds=serial_rounds,mtp_resumes=mtp_resumes,mtp_n=int(mtp_enabled),graphs=e.graphs is not None,vision=image,cache_slots=e.st.capacity,sparse_graph_replays=dict(e.replays),peak_reserved=torch.cuda.max_memory_reserved(),sampling=dataclasses.asdict(sampling) if sampling is not None else None,thinking_loop=landing_state.metadata(),stop_reason=landing_state.termination_reason,thinking_decode='mtp-target-with-protected-serial-landing')
+ 
+ def make_app(runtime,model,frontend=None):
+  from tensorfold.cuda.server import App,RequestError
+@@ -242,12 +272,20 @@ def make_app(runtime,model,frontend=None):
+  app=ServingApp(Adapter(),model,'glm53',default_thinking=True,sampling={'temperature':0.3,'top_p':0.95,'top_k':0,'min_p':0.05},max_tokens=MAX_OUTPUT,context_window=CONTEXT,reasoning_effort='high',thinking_budget=0)
+  from tensorfold.engine.thinking_landing import LandingConfig
+  app.landing_defaults=LandingConfig(**json.loads((HERE/'thinking_defaults.json').read_text()))
+- serving=json.loads((HERE/'serving_defaults.json').read_text())
+- if set(serving)!={'prefix_cache','keepalive_seconds'} or type(serving['prefix_cache']) is not bool or type(serving['keepalive_seconds']) not in (int,float) or serving['keepalive_seconds']<0:
+-  raise ValueError('serving_defaults.json needs a boolean prefix_cache and a non-negative keepalive_seconds')
++ serving=serving_defaults()
+  app.prefix_cache=serving['prefix_cache'];app.keepalive_seconds=serving['keepalive_seconds']
+  return app
+ 
++def serving_defaults():
++ serving=json.loads((HERE/'serving_defaults.json').read_text())
++ required={'prefix_cache','keepalive_seconds'}
++ if not required<=set(serving)<=required|{'mtp_drafts','mtp_depth'} or type(serving['prefix_cache']) is not bool or type(serving['keepalive_seconds']) not in (int,float) or serving['keepalive_seconds']<0:
++  raise ValueError('serving_defaults.json needs a boolean prefix_cache and a non-negative keepalive_seconds')
++ drafts=serving.get('mtp_drafts',1)
++ if type(drafts) is not int or not 1<=drafts<=7 or serving.get('mtp_depth','auto') not in ('auto','fixed'):
++  raise ValueError('serving_defaults.json: mtp_drafts is 1 to 7 and mtp_depth is "auto" or "fixed"')
++ return serving
++
+ def reserve_guard(m,a,reserve):
+  """The inherited v42 guard with this copy's host reserve; every other limit is unchanged."""
+  GIB=m.GIB
+@@ -281,20 +319,27 @@ def main():
+  runtime=ns['load_runtime'](a,{},dict(cache_slots=SLOTS,dense_limit=2051,long_context=True),guard)
+  e,tok,torch,api,Sampling,scratch,forward,hooks,admission=runtime
+  if not Path(api.__file__).resolve().is_relative_to((COPY/'src').resolve()):raise RuntimeError('Original TensorFold imported instead of source copy')
++ global MTP_DRAFTS,MTP_DEPTH
++ serving=serving_defaults();MTP_DRAFTS=serving.get('mtp_drafts',1);MTP_DEPTH=serving.get('mtp_depth','auto')
++ # A round verifies the pending token and its drafts in one window, which the loader's buffers and scratch must hold.
++ width=min([scratch.shape[0]]+[b.rows for b in (e.buf,e.mbuf) if b is not None])
++ if MTP_DRAFTS+1>width:raise ValueError(f'mtp_drafts {MTP_DRAFTS} needs {MTP_DRAFTS+1}-row verify windows; this runtime allocates {width}')
++ if MTP_DRAFTS>1 and not hasattr(api,'DepthPolicy'):raise RuntimeError('mtp_drafts above 1 needs the decode module\'s DepthPolicy')
++ rows=tuple(range(1,MTP_DRAFTS+2))
+  with torch.inference_mode():
+   warm=dict(id='warmup',raw_prompt_ids=[tok.token_to_id('<|endoftext|>'),*tok.encode('warmup',add_special_tokens=False).ids],max_new_tokens=4,force_length=True,sampler={'temperature':0},seed=0)
+   m.collect(e,tok,warm,torch,api,Sampling,scratch,guard)
+   from tensorfold.families.glm5_next.cuda.graphs import Graphs
+   for b in (e.buf,e.pbuf,e.mbuf):
+    if b is not None:
+-    for n in (1,2):b.parents(n)
++    for n in rows:b.parents(n)
+     b.ids.zero_()
+     if b.hin is not None:b.hin.zero_()
+-  e.reset();torch.cuda.synchronize();e.graphs=Graphs(e,main_rows=(1,2),mtp_rows=(1,2));e.reset();torch.cuda.synchronize();guard('after_serving_graph_capture')
++  e.reset();torch.cuda.synchronize();e.graphs=Graphs(e,main_rows=rows,mtp_rows=rows);e.reset();torch.cuda.synchronize();guard('after_serving_graph_capture')
+  from vision import Frontend
+  guard("before_vision_loader");frontend=Frontend(a.model,runtime);guard("after_vision_loader")
+  app=make_app(runtime,a.model,frontend)
+- print(json.dumps(dict(status='ready',model='glm53',admission=admission,admission_note='peak is the 89,344-slot measurement plus a 3.5 GiB estimate for 262,144 slots',reserve_gib=RESERVE_GIB,context=CONTEXT,max_prompt=MAX_PROMPT,max_output=MAX_OUTPUT,text_only=False,vision=True,tools=True,default_sampling=app.sampling,reasoning_effort=app.reasoning_effort,thinking_loop=dataclasses.asdict(app.landing_defaults),prefix_cache=app.prefix_cache,keepalive_seconds=app.keepalive_seconds,tensorfold_source=str(COPY))),flush=True)
++ print(json.dumps(dict(status='ready',model='glm53',admission=admission,admission_note='peak is the 89,344-slot measurement plus a 3.5 GiB estimate for 262,144 slots',reserve_gib=RESERVE_GIB,context=CONTEXT,max_prompt=MAX_PROMPT,max_output=MAX_OUTPUT,text_only=False,vision=True,tools=True,default_sampling=app.sampling,reasoning_effort=app.reasoning_effort,thinking_loop=dataclasses.asdict(app.landing_defaults),prefix_cache=app.prefix_cache,keepalive_seconds=app.keepalive_seconds,mtp_drafts=MTP_DRAFTS,mtp_depth=MTP_DEPTH,tensorfold_source=str(COPY))),flush=True)
+  from tensorfold.cuda.http import serve
+  serve(app,'127.0.0.1',8002)
+ if __name__=='__main__':main()
+diff --git a/serving/serving_defaults.json b/serving/serving_defaults.json
+index bf836a2f..5a90905f 100644
+--- a/serving/serving_defaults.json
++++ b/serving/serving_defaults.json
+@@ -1,4 +1,6 @@
+ {
+   "prefix_cache": true,
+-  "keepalive_seconds": 15
++  "keepalive_seconds": 15,
++  "mtp_drafts": 1,
++  "mtp_depth": "auto"
+ }
+diff --git a/tests/test_landing_mtp.py b/tests/test_landing_mtp.py
+index a85b9fa4..d7107352 100644
+--- a/tests/test_landing_mtp.py
++++ b/tests/test_landing_mtp.py
+@@ -19,9 +19,14 @@ tree = ast.parse(SOURCE.read_text())
+ engine = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'Engine')
+ functions = [next(n for n in engine.body if isinstance(n, ast.FunctionDef) and n.name == 'sample')]
+ functions += [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('absorb', 'draft')]
++functions += [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'DepthPolicy']
+ unit = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(name='annotations')], level=0)] + functions, type_ignores=[])
+ ast.fix_missing_locations(unit)
+-namespace = {'sample_rows': lambda w, y, p, s, offset, probs: y.argmax(dim=-1).tolist()}
++def sample_rows(w, y, p, s, offset, probs):
++    if probs is not None:  # a draft's confidence: the row's softmax peak
++        probs.extend(torch.softmax(y.float(), dim=-1).max(dim=-1).values.tolist())
++    return y.argmax(dim=-1).tolist()
++namespace = {'sample_rows': sample_rows}
+ exec(compile(unit, str(SOURCE), 'exec'), namespace)
+ spec = importlib.util.spec_from_file_location('mtp_test_serving', COPY / 'serving/server.py')
+ serving = importlib.util.module_from_spec(spec)
+@@ -78,28 +83,31 @@ class Sampling:
+ 
+ 
+ class Fake:
+-    def __init__(self, sequence, landing, reject=False):
++    def __init__(self, sequence, landing, reject=False, width=2, wrong=(), draft_peak=20.0):
+         self.sequence = sequence
+         self.landing = landing
+         self.reject = reject
++        self.wrong, self.draft_peak = set(wrong), draft_peak  # sequence indexes the MTP head misses; its logit peak
+         self.w = NS(cfg=NS(eos=(9,)), vocab_offset=0)
+         self.st = NS(pos=0, capacity=5000, mtp_len=0, mtp_drafted=0)
+         self.st.set_mtp_len = lambda n: setattr(self.st, 'mtp_len', n)
+         self.buf = None
+-        self.mbuf = NS(rows=2)
++        self.mbuf = NS(rows=width)
+         self.graphs = None
+         self.replays = {}
+         self.constraint = self.window = self.thinking_landing = None
+         self.context, self.history, self.commits, self.mtp_pairs, self.samples = [], [], [], [], []
+         self.draft_calls = []
+-        def draft(e, hidden, tokens, position, count, sampling):
+-            self.draft_calls.append((count, self.thinking_landing.serial_required))
+-            return namespace['draft'](e, hidden, tokens, position, count, sampling)
++        self.chain = 0
++        def draft(e, hidden, tokens, position, count, sampling, confidence=0.0):
++            self.draft_calls.append((count, getattr(self.thinking_landing, 'serial_required', False)))
++            self.chain = 0
++            return namespace['draft'](e, hidden, tokens, position, count, sampling, confidence)
+         self.decode_piece = lambda token: str(token)
+         self.rows = None
+         self.last_hidden = torch.zeros(1, 1)
+-        self.scratch = torch.empty(2, 1)
+-        self.api = NS(prefill=self.prefill, commit=self.commit, draft=draft,
++        self.scratch = torch.empty(width, 1)
++        self.api = NS(prefill=self.prefill, commit=self.commit, draft=draft, DepthPolicy=namespace['DepthPolicy'],
+                       take_snapshot=lambda e,ids,pending,**kw:NS(ids=list(ids),mtp_len=-1))  # never resumed by these doubles
+     def reset(self):
+         self.st.pos = self.st.mtp_len = self.st.mtp_drafted = 0
+@@ -126,7 +134,7 @@ class Fake:
+         self.graph_original = self.graph_output.clone()
+         return self.graph_output
+     def sample(self, y, positions, sampling, **kwargs):
+-        self.samples.append((kwargs.get('draft', False), tuple(self.thinking_landing.observed)))
++        self.samples.append((kwargs.get('draft', False), tuple(getattr(self.thinking_landing, 'observed', ()))))
+         return namespace['sample'](self, y, positions, sampling, **kwargs)
+     def mtp(self, tokens, hidden):
+         for i, token in enumerate(tokens):
+@@ -134,7 +142,13 @@ class Fake:
+             if int(hidden[i, 0]) != position:
+                 raise AssertionError(('MTP hidden alignment', position, hidden.tolist(), tokens))
+             self.mtp_pairs.append((position, token))
+-        return self.logits(31 if self.reject else self.wanted(len(self.history)))
++        index = len(self.history) + self.chain  # a chained draft proposes the token after the previous draft
++        row = self.logits(31 if self.reject or index in self.wrong else self.wanted(index))
++        return row * (self.draft_peak / 20.0)
++    def draft_hidden(self, row):
++        # The MTP head's own output row feeds the next chained draft; it encodes the MTP position it is paired at.
++        self.chain += 1
++        return torch.full((1, 1), float(self.st.mtp_len))
+     def main_hidden(self, rows):
+         return self.hiddens[rows]
+     def follow(self, tokens):
+@@ -144,14 +158,16 @@ class Fake:
+         self.context.extend(self.rows[:keep])
+         st.pos += keep
+         assert torch.equal(self.graph_output, self.graph_original), 'graph output mutated'
+-    def run(self, count, draft=True, callback=None, greedy_none=False):
++    def run(self, count, draft=True, callback=None, greedy_none=False, sampling=None):
+         cuda = NS(synchronize=lambda: None, max_memory_reserved=lambda: 0)
+         runtime = (self, NS(decode=lambda ids, **kw: self.decode_piece(ids[0])), NS(inference_mode=torch.inference_mode, cuda=cuda), self.api, Sampling, self.scratch, None, NS(guard=lambda phase: None), {})
+         self.out = []
+         def emit(tokens):
+             self.out.extend(tokens)
+             return bool(callback(tokens)) if callback else False
+-        self.stats = serving.generate(runtime, [20, 1], count, None if greedy_none else Sampling(), emit, draft=draft, landing_state=self.landing)
++        if sampling is None and not greedy_none:
++            sampling = Sampling()
++        self.stats = serving.generate(runtime, [20, 1], count, sampling, emit, draft=draft, landing_state=self.landing)
+         return self.stats
+ 
+ 
+@@ -397,5 +413,107 @@ class MTPTests(unittest.TestCase):
+         self.assertEqual(fake.landing.observed, [5])
+ 
+ 
++LONG = [5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16] * 6 + [9]
++
++
++class MTPDepthTests(unittest.TestCase):
++    """Several drafts a round (serving_defaults.json mtp_drafts above 1): same tokens as serial, wider commits."""
++    def setUp(self):
++        saved = serving.MTP_DRAFTS, serving.MTP_DEPTH
++        self.addCleanup(lambda: setattr(serving, 'MTP_DRAFTS', saved[0]) or setattr(serving, 'MTP_DEPTH', saved[1]))
++    def deep(self, sequence, landing, drafts=3, depth='fixed', **kwargs):
++        serving.MTP_DRAFTS, serving.MTP_DEPTH = drafts, depth
++        return Fake(sequence, landing, width=drafts + 1, **kwargs)
++    def serial(self, sequence, landing, count=128):
++        fake = Fake(sequence, landing)
++        fake.run(count, draft=False)
++        return fake
++    def test_one_draft_has_no_policy(self):
++        serving.MTP_DRAFTS = 1
++        self.assertIsNone(serving.depth_policy(NS(), Sampling()))
++    def test_three_drafts_commit_four_rows_and_match_serial(self):
++        sequence = [5, 6, 7, 8, 10, 14, 15, 16, 9]
++        fake = self.deep(sequence, Landing(closed=True))
++        fake.run(32)
++        self.assertEqual(fake.out, self.serial(sequence, Landing(closed=True)).out)
++        self.assertEqual(fake.commits, [(4, 4), (4, 4)])
++        self.assertEqual(fake.stats['draft_depths'], {3: 2})
++        self.assertEqual(fake.stats['accepted'], 6)
++        self.assertEqual(fake.landing.observed, fake.out)
++        self.assertEqual(fake.context, [20, 1] + fake.out[:-1])
++    def test_miss_keeps_the_matched_prefix_and_realigns_the_mtp_cache(self):
++        fake = self.deep(LONG, Landing(closed=True), wrong=(2, 9, 10, 23))
++        fake.run(128)  # Fake.mtp checks every MTP row's position after each rollback
++        self.assertEqual(fake.out, self.serial(LONG, Landing(closed=True)).out)
++        self.assertEqual(fake.commits[0], (4, 2))
++        self.assertEqual(fake.context, [20, 1] + fake.out[:-1])
++        self.assertEqual(fake.stats['accepted'], len(fake.out) - 1 - fake.stats['rounds'])
++    def test_unconstrained_path_matches_serial(self):
++        fake = self.deep(LONG, None, wrong=(4, 17))
++        fake.run(128)
++        self.assertEqual(fake.out, self.serial(LONG, None).out)
++        self.assertEqual(fake.commits[0], (4, 4))
++        self.assertEqual(fake.stats['draft_depths'][3], fake.stats['rounds'])
++    def test_count_never_overshoots(self):
++        for count in range(1, 10):
++            fake = self.deep(LONG, Landing(closed=True))
++            fake.run(count)
++            self.assertEqual(len(fake.out), count)
++            self.assertEqual(fake.landing.observed, fake.out)
++            self.assertTrue(all(rows <= count - 1 for rows, keep in fake.commits))
++    def test_natural_close_inside_the_window_ends_it(self):
++        fake = self.deep([5, 6, 2, 8, 9], Landing())
++        fake.run(32)
++        self.assertEqual(fake.out, [5, 6, 2, 8, 9])
++        self.assertEqual(fake.commits[0], (4, 2))
++        self.assertEqual(fake.landing.observed, fake.out)
++    def test_trigger_inside_the_window_lands_like_serial(self):
++        sequence = [5, 6, 7, 7, 7, 7, 7, 7, 8, 9]
++        fake = self.deep(sequence, Landing(trigger_at=3))
++        fake.run(32)
++        serial = self.serial(sequence, Landing(trigger_at=3), 32)
++        self.assertEqual(fake.out, serial.out)
++        self.assertEqual(fake.landing.observed, fake.out)
++        self.assertEqual(fake.commits[0], (4, 2))  # the second accepted draft fires the trigger
++        self.assertEqual(fake.stats['mtp_resumes'], 1)
++        self.assertTrue(all(count == 0 for count, serial_required in fake.draft_calls if serial_required))
++    def test_real_landing_trigger_with_three_drafts_matches_serial(self):
++        sequence = [5, 6, 7, 7, 7, 7, 7, 7, 8, 9]
++        fake = self.deep(sequence, real_state())
++        fake.run(4096)
++        self.assertEqual(fake.out, self.serial(sequence, real_state(), 4096).out)
++        self.assertEqual(fake.landing.observed, fake.out)
++        self.assertEqual(fake.context, [20, 1] + fake.out[:-1])
++    def test_sampled_auto_policy_adapts_between_one_and_three(self):
++        fake = self.deep(LONG, Landing(closed=True), depth='auto')
++        fake.run(128, sampling=Sampling(temperature=0.3))
++        depths = fake.stats['draft_depths']
++        self.assertEqual(set(depths), {2, 3})  # starts at 2 (rate 0.8), climbs to 3 as every draft lands
++        rejected = self.deep(LONG, Landing(closed=True), depth='auto', reject=True)
++        rejected.run(128, sampling=Sampling(temperature=0.3))
++        self.assertIn(1, rejected.stats['draft_depths'])
++        self.assertEqual(rejected.out, fake.out)
++    def test_auto_policy_learns_from_every_drafted_round(self):
++        learned = []
++        class Spy(namespace['DepthPolicy']):
++            def next(self, drafted, accepted):
++                if drafted:
++                    learned.append((drafted, accepted))
++                return super().next(drafted, accepted)
++        fake = self.deep([5, 6, 7, 7, 7, 7, 7, 7, 8, 9], Landing(trigger_at=3), depth='auto')
++        fake.api.DepthPolicy = Spy
++        fake.run(32, sampling=Sampling(temperature=0.3))
++        self.assertGreater(fake.stats['serial_rounds'], 0)  # serial landing rounds sit between drafted ones
++        self.assertEqual(len(learned), sum(rounds for depth, rounds in fake.stats['draft_depths'].items() if depth))
++    def test_greedy_auto_policy_stops_chaining_on_low_confidence(self):
++        fake = self.deep(LONG, Landing(closed=True), depth='auto', draft_peak=1.0)
++        fake.run(128)
++        self.assertEqual(set(fake.stats['draft_depths']), {1})
++        sure = self.deep(LONG, Landing(closed=True), depth='auto')
++        sure.run(128)
++        self.assertEqual(set(sure.stats['draft_depths']), {3})
++        self.assertEqual(sure.out, fake.out)
++
++
+ if __name__ == '__main__':
+     unittest.main()
