@@ -10,7 +10,7 @@ Expected: **30.73 tok/s** decode, mean of four prompt medians, single stream —
 
 `./run.sh --check` changes nothing and reports what it would do; `./run.sh --stop` stops the server. The script checks for a GB10 (SM121), 103.5 GiB of available memory (the loader's planned peak plus the 5 GiB reserve) and a free port 8002, which the server binds on 127.0.0.1 and cannot change. It then checks out TensorFold at the pinned commit and applies patches 01–04 and 07 after checking each one's SHA-256. It installs the hash-pinned `transformers==5.17.0` overlay the host used and downloads the checkpoint at the pinned revision, verifying every file by SHA-256. The large files' hashes come from the Hub's LFS metadata at that revision; the small ones were hashed from the Hub at that revision. Finally it starts the container in the background. `HF_TOKEN` is read from the environment only.
 
-The runtime image has to match the image ID under Recipe below. **It is not publicly pullable yet**, so on a machine without that image `run.sh` stops at the engine step.
+The runtime image is pulled from `ghcr.io/sxuff/glm53-tensorfold-runtime@sha256:b9b29ebb48b11026e4ee278d8ee4c2c20f168fdcc433359e883c7a8c2dfb5e18` (14.9 GB compressed, 33.6 GB unpacked). That manifest's config digest is the image ID under Recipe below. It is the exact image behind the receipts, published as-is and not rebuilt.
 
 0xSero's GLM-5.3 Flash M288 Mosaic 12L (EXL3, 2.05 bpw with 12 layers of 3-bit experts) on one NVIDIA GB10, served by TensorFold 0.6.5 with exact MTP behind an OpenAI-compatible endpoint: 30.73 tok/s, 262,144-token context, vision, prompt state reused between turns.
 

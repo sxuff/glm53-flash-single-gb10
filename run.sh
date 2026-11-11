@@ -27,10 +27,10 @@ READY_TIMEOUT=1200                               # serving/supervisor.py (patche
 EXPECTED_LINE="30.73 tok/s decode, mean of four prompt medians, single stream (measured at 2,560 cache slots; ./run.sh serves the README's 262,144-slot profile)"
 RECEIPT_PATH="results/glm53-mosaic-decode-20261005.json"
 
-# Engine source: TensorFold v0.6.5 with this repo's patches 01-04 (README.md:49,53-71) and
+# Engine source: TensorFold v0.6.5 with this repo's patches 01-04 (README.md:61,65-83) and
 # patches/07-portable-launcher.patch, which replaces server.py's three host-only imports.
 TF_URL="https://github.com/ashhart/TensorFold"
-TF_COMMIT="609ca419abecebdc5a059498a613680bd3aa847f"   # README.md:49
+TF_COMMIT="609ca419abecebdc5a059498a613680bd3aa847f"   # README.md:61
 TF_DIR="$SRC_DIR/glm53-tensorfold-${TF_COMMIT:0:12}"
 PATCHES="
 eba18758e5152c378bc698f7fc0a52ff2c6154fc9e53b57df4c9096743f39ea4 01-exl3-single-gpu-port.patch
@@ -38,12 +38,19 @@ eba18758e5152c378bc698f7fc0a52ff2c6154fc9e53b57df4c9096743f39ea4 01-exl3-single-
 6dc8437c9c9c81d13969587bd5a3cdd88a1e62d6b166bb95c283fa089bfe5d80 03-mosaic-mixed-width-experts.patch
 629afcadb9bb833975f5995f28e3cf15ac6856ce0bcd038336da7db87daf890b 04-stream-keepalive-content-delta.patch
 acb9011ec342d359a51d65741e6350d4c1face7986a69d7d5ae7ebf683dada42 07-portable-launcher.patch
-"   # README.md:67-70 (01-04) and the README "Run it" section (07)
+"   # README.md:79-82 (01-04) and the README "Run it" section (07)
 
-# Runtime image: the exact image behind every mosaic receipt, pinned by image ID (README.md:50).
+# Runtime image: the exact image behind every mosaic receipt, pinned by image ID (README.md:62).
 IMAGE_ID="sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee"
-IMAGE_PULL=""                  # public copy, by manifest digest: not published yet (README.md "Run it")
+# The same image on ghcr.io, by manifest digest. That manifest's config digest is IMAGE_ID, so with Docker's
+# classic image store a pull shows IMAGE_ID; with the containerd image store Docker reports the manifest digest.
+IMAGE_PULL="ghcr.io/sxuff/glm53-tensorfold-runtime@sha256:b9b29ebb48b11026e4ee278d8ee4c2c20f168fdcc433359e883c7a8c2dfb5e18"
 IMAGE_BYTES=33600645222        # docker image inspect .Size of IMAGE_ID, uncompressed
+image_local() {                # prints the reference to run: the image ID if present, else the pulled digest
+  if docker image inspect "$IMAGE_ID" >/dev/null 2>&1; then echo "$IMAGE_ID"
+  elif docker image inspect "$IMAGE_PULL" >/dev/null 2>&1; then echo "$IMAGE_PULL"; fi
+}
+IMAGE_RUN="$(image_local)"
 
 # The overlay the host installed beside the image (its grammar-requirements.txt): transformers 5.17.0, hash-pinned.
 DEPS_DIR="$STATE_DIR/deps-transformers-5.17.0"
@@ -51,9 +58,9 @@ DEPS_REQ="transformers==5.17.0 --hash=sha256:78ec1ce21579b38dfb83950a0658cd119f8
 
 MODEL_DIR="$MODELS_DIR/glm53-mosaic-12l-264285174"
 ENGINE_DISK_BYTES=0
-docker image inspect "$IMAGE_ID" >/dev/null 2>&1 || ENGINE_DISK_BYTES=$IMAGE_BYTES
+[ -n "$IMAGE_RUN" ] || ENGINE_DISK_BYTES=$IMAGE_BYTES
 
-# Pinned weights: 0xSero/GLM-5.3-Flash-EXL3-Spark @ 2642851741fc (README.md:48), 27 files,
+# Pinned weights: 0xSero/GLM-5.3-Flash-EXL3-Spark @ 2642851741fc (README.md:60), 27 files,
 # 96,105,136,306 bytes (results/glm53-mosaic-artifact-census-20261005.json pack_total_bytes).
 # SHA-256 per file. LFS files: the Hub's LFS metadata at the pinned revision (they also match the
 # checkpoint's own sha256-manifest.txt). The 12 small files: hashed from the Hub at that revision on
@@ -92,13 +99,13 @@ b51fe40eb74fbf2f657bafa3efe9700af5022158d46dae7ecd23951913a2948f 2356 $W_REPO $W
 
 engine_step() {
   # 1) the runtime image, by image ID
-  if docker image inspect "$IMAGE_ID" >/dev/null 2>&1; then ok "image present: $IMAGE_ID"
-  elif [ -z "$IMAGE_PULL" ]; then fail "runtime image $IMAGE_ID is not on this machine and has no public copy yet (README.md \"Run it\")"
-  elif [ "$CHECK" = 1 ]; then plan "docker pull $IMAGE_PULL  (then require image ID $IMAGE_ID)"
+  if [ -n "$IMAGE_RUN" ]; then ok "image present: $IMAGE_RUN"
+  elif [ "$CHECK" = 1 ]; then plan "docker pull $IMAGE_PULL  (14.9 GB compressed; its config digest is $IMAGE_ID)"
   else
     docker pull "$IMAGE_PULL"
-    [ "$(docker image inspect "$IMAGE_PULL" --format '{{.Id}}')" = "$IMAGE_ID" ] || die "pulled image ID differs from $IMAGE_ID"
-    ok "image pulled: $IMAGE_ID"
+    local id; id="$(docker image inspect "$IMAGE_PULL" --format '{{.Id}}')"
+    case "$id" in "$IMAGE_ID"|"${IMAGE_PULL##*@}") ;; *) die "pulled image $id is neither $IMAGE_ID nor ${IMAGE_PULL##*@}" ;; esac
+    IMAGE_RUN="$IMAGE_PULL"; ok "image pulled: $IMAGE_PULL"
   fi
   # 2) TensorFold at the pinned commit; every patch checked by SHA-256, then applied in order
   local mark="$TF_DIR/.glm53-patches-applied" want sha name
@@ -125,7 +132,7 @@ engine_step() {
   else
     mkdir -p "$DEPS_DIR"; printf '%s\n' "$DEPS_REQ" > "$DEPS_DIR/requirements.txt"
     docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONPATH= -v "$DEPS_DIR:/deps" \
-      --entrypoint /opt/sglang/bin/python3 "$IMAGE_ID" \
+      --entrypoint /opt/sglang/bin/python3 "${IMAGE_RUN:-$IMAGE_PULL}" \
       -m pip install --quiet --no-deps --require-hashes --target /deps -r /deps/requirements.txt
     touch "$DEPS_DIR/.ok"; ok "overlay installed: $DEPS_DIR"
   fi
@@ -141,8 +148,8 @@ serve_step() {   # the docker run of serving/supervisor.py (patches/02), without
     -e EXL3_INT8_GEMV=2 -e PYTHONDONTWRITEBYTECODE=1 -e "TFGLM_CONTROLLER_STAGE=$CONTAINER_NAME"
     -e TORCH_EXTENSIONS_DIR=/work/torch_extensions
     -e PYTHONPATH=/work/deps:/work/TensorFold/src:/opt/sglang/lib/python3.12/site-packages
-    "$IMAGE_ID" -B -S /work/TensorFold/serving/server.py --model /model --host-swap-baseline-bytes "$swap")
-  # supervisor.py: 95 GiB memory limit, zero container swap, EXL3_INT8_GEMV=2 (README.md:51), same env and entry point
+    "${IMAGE_RUN:-$IMAGE_PULL}" -B -S /work/TensorFold/serving/server.py --model /model --host-swap-baseline-bytes "$swap")
+  # supervisor.py: 95 GiB memory limit, zero container swap, EXL3_INT8_GEMV=2 (README.md:63), same env and entry point
   if [ "$CHECK" = 1 ]; then plan "${argv[*]}"; return; fi
   mkdir -p "$STATE_DIR/torch_extensions"
   docker rm "$CONTAINER_NAME" >/dev/null 2>&1 || true   # a stopped container left by an earlier run
@@ -157,7 +164,7 @@ stop_override() {
   else ok "nothing started by this script is running"; fi
 }
 
-curl_test() {      # served model id and request fields: README.md:77-82 and serving/server.py
+curl_test() {      # served model id and request fields: README.md:89-94 and serving/server.py
   cat <<EOF
 curl -s http://127.0.0.1:${PORT}/v1/chat/completions -H 'Content-Type: application/json' \\
   -d '{"model":"glm53","messages":[{"role":"user","content":"Return only the integer obtained by multiplying 12 by 17."}],"max_tokens":2000}'
