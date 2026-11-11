@@ -1,0 +1,189 @@
+diff --git a/serving/loader_mosaic.py b/serving/loader_mosaic.py
+new file mode 100644
+index 000000000..4afa878e7
+--- /dev/null
++++ b/serving/loader_mosaic.py
+@@ -0,0 +1,46 @@
++"""Owned loader configuration/admission only. Original TensorFold operations unchanged.
++The host copy (mosaic-v59/runtime_loader_mosaic.py) first re-hashed the host's own source tree against a
++host-only receipt; that audit is left out here. run.sh checks the TensorFold commit and every patch SHA-256 instead."""
++def load_runtime(a,p,c,guard):
++ guard('before_Torch')
++ # Do not run site.main(): historical sitecustomize overlays must remain absent.
++ if sys.flags.no_site:sys.path.append('/opt/sglang/lib/python3.12/site-packages')
++ os.environ.update(TF_GLM_LATENT='1',TF_GLM_CACHE_GIB='0',TF_GLM_CACHE_ENTRIES='0',TF_GLM_PROFILE='0')
++ sys.path.insert(0,str(ORIGINAL))
++ import torch
++ from tokenizers import Tokenizer
++ from tensorfold.cuda import capacity,geometry
++ from tensorfold.families.glm5_next.cuda import forward,decode,weights
++ from tensorfold.engine.exact_sampling import Sampling
++ if torch.cuda.device_count()!=1:raise ValueError('exact one GPU TP1 required')
++ cfg0=weights.Config.read(a.model);cfg=configured(cfg0,c)
++ if (cfg.layers,cfg.heads,cfg.lin_heads,cfg.vocab,cfg.limit,cfg0.dense_limit)!=(45,64,64,154880,10.0,2051):raise ValueError('original full model geometry/clip contract')
++ h=capacity.headers(a.model);extra=weights.workspace_bytes(cfg,h,rows=2,prefill_rows=128,load_mtp=True)
++ # Use source geometry conservatively (it accounts 2048 prefill rows), no allocation.
++ geo0=geometry.mla_geometry({**capacity.config(a.model),'num_nextn_predict_layers':1},1,0,minimum_slots=2560,latent=True)
++ # minimum_slots within mla_geometry also controls its dense scratch estimate.
++ # Keep that source clamp2560, then set cache allocation floor independently.
++ geo=dataclasses.replace(geometry.with_fixed(geo0,extra+2*cfg.hidden*2),minimum_slots=c['cache_slots'])
++ forecast=capacity.estimate_weights(a.model,weights.packed_residency(cfg,load_mtp=True))
++ estimate=forecast.resident+max(forecast.staging,geo.bytes_at(c['cache_slots']))
++ if MEASURED85:
++  sample=guard('measured85_admission_live_guard');planned=MEASURED_PEAK
++  if planned+5*GIB>sample['host_available']:raise Unsupported('measured85_peak_plus4GiB_cannot_preserve_reserve')
++  admission=dict(policy='v42 measured peak reserved plus4GiB user-authorized',measured_v42_peak_reserved=MEASURED_PEAK,margin_bytes=4*GIB,planned_bytes=planned,host_available=sample['host_available'],required_host_available=planned+5*GIB,original_formula_diagnostic_bytes=estimate,formula_not_used_for85_admission=True,cache_slots=c['cache_slots'])
++ else:
++  guard('allocation_forecast_before_weights',estimate)
++  budget=min(95*GIB-3*GIB,guard('admission')['host_available']-23*GIB)
++  plan=capacity.make_plan(int(capacity.config(a.model)['max_position_embeddings']),c['cache_slots'],True,budget,forecast,geo)
++  try:window=capacity.choose(plan)
++  except ValueError as ex:raise Unsupported('original_config_admission_refused: '+str(ex)) from ex
++  admission=plan.receipt(window)
++ w=weights.load(a.model,rank=0,world=1,load_mtp=True);guard('after_full_load')
++ stops=tuple(p.get('stop_token_ids',w.cfg.eos))
++ if not set(w.cfg.eos)<=set(stops):raise ValueError('original stop IDs must survive')
++ w.cfg=dataclasses.replace(configured(w.cfg,c),eos=stops)
++ if len(w.layers)!=45 or w.world!=1 or w.comm is not None or w.head.n!=154880 or w.mtp is None or not w.meta.get('packed_exl3'):raise ValueError('full original TP1 loader contract')
++ e=decode.Engine(w,capacity=c['cache_slots'],max_rows=2,prefill_rows=128,graphs=False,long_context=c['long_context'])
++ hooks=SourceHooks(e,forward,decode,guard,torch)
++ tok=Tokenizer.from_file(str(a.model/'tokenizer.json'))
++ scratch=torch.empty((2,cfg.hidden),dtype=torch.bfloat16,device=w.device)
++ return e,tok,torch,decode,Sampling,scratch,forward,hooks,admission
+diff --git a/serving/runner_v42_subset.py b/serving/runner_v42_subset.py
+new file mode 100644
+index 000000000..d25fc55b4
+--- /dev/null
++++ b/serving/runner_v42_subset.py
+@@ -0,0 +1,95 @@
++"""The parts of the host's context-v42 runner that serving/server.py uses, copied unchanged.
++
++server.py imports this module as `m` and runs serving/loader_mosaic.py in its namespace. Every
++function and class below is byte-for-byte the host copy the 2026-10-05 mosaic receipts ran with;
++the host's qualification and logit-capture code, which serving never calls, is left out.
++"""
++from __future__ import annotations
++import dataclasses, hashlib, json, os, sys, time
++from pathlib import Path
++
++HERE = Path(__file__).resolve().parent
++ORIGINAL = HERE.parent / 'src'  # server.py sets this to the patched TensorFold source before loading
++GIB = 1024**3
++STAGE = 'tfglm-mosaic-v59-pipeline'  # server.py sets the same name; run.sh passes it as TFGLM_CONTROLLER_STAGE
++
++class SafetyAbort(BaseException):
++    """Hard abort, deliberately outside Exception handlers."""
++class Unsupported(RuntimeError): pass
++
++def configured(cfg,c):
++ # dense_limit is a read-only PROPERTY, not a dataclass field. Changing index_topk
++ # is the only config-only setter of its dense threshold; sparse stays original.
++ return dataclasses.replace(cfg,index_topk=c['dense_limit']-cfg.kpool+1,mtp_layers=1)
++
++def authorize(a):
++ if not a.authorized_guarded_gpu or a.stage!=STAGE or os.environ.get('TFGLM_CONTROLLER_STAGE')!=a.stage:raise ValueError('exact parent stage authorization required')
++ if a.host_swap_baseline_bytes<0:raise ValueError('numeric original host swap baseline required')
++ if os.environ.get('EXL3_INT8_GEMV')!='2':raise ValueError('original parent numeric mode EXL3_INT8_GEMV=2 required')
++ if 'torch' in sys.modules:raise ValueError('safety must run before Torch import')
++
++class SourceHooks:
++ """Read-only observation and hard guards, installed before graph capture."""
++ def __init__(self,e,f,api,guard,torch):
++  self.e=e;self.f=f;self.api=api;self.guard=guard;self.torch=torch;self.undo=[];self.counts={'index_update':0,'select_tokens':0,'sparse_attention':0};self.positions=[]
++  def install(obj,name,fn):
++   old=getattr(obj,name);self.undo.append((obj,name,old));setattr(obj,name,fn(old))
++  def stagewrap(old):
++   def call(w,st,b,tokens):
++    guard('prefix_or_target_stage');self.positions.append({'kind':'target','pos':st.pos,'rows':len(tokens)});return old(w,st,b,tokens)
++   return call
++  install(f,'stage',stagewrap);install(api,'stage',stagewrap)
++  from tensorfold.families.glm5_next.cuda import mtp,sparse,latent
++  def mtpwrap(old):
++   def call(w,st,b,tokens,hidden):
++    guard('MTP_stage');self.positions.append({'kind':'mtp','pos':st.mtp_len,'rows':len(tokens)});return old(w,st,b,tokens,hidden)
++   return call
++  install(mtp,'mtp_stage',mtpwrap);install(api,'mtp_stage',mtpwrap)
++  def counter(name):
++   def wrap(old):
++    def call(*a,**kw):self.counts[name]+=1;return old(*a,**kw)
++    return call
++   return wrap
++  install(sparse,'index_update',counter('index_update'));install(sparse,'select_tokens',counter('select_tokens'));install(latent,'sparse_attention',counter('sparse_attention'))
++ def close(self):
++  for obj,name,old in reversed(self.undo):setattr(obj,name,old)
++
++def collect(e,tok,c,torch,api,Sampling,scratch,guard):
++ """Original v33c depth-one kernels/sampler, owned safety/count clock loop."""
++ ids=c['raw_prompt_ids'];count=c['max_new_tokens'];stops=not c['force_length'];actual=[];emitted=[];stamps=[];keeps=[];depths=[];rounds=proposals=accepted=0
++ settings={k:c.get('sampler',{}).get(k,v) for k,v in {'temperature':0,'top_p':1,'top_k':0,'min_p':0}.items()}
++ sampling=Sampling(seed=c.get('seed') or 0,**settings);old=e.follow
++ def follow(xs):actual.extend(xs);old(xs)
++ def callback(xs):
++  torch.cuda.synchronize();emitted.extend(xs);stamps.append({'clock_ns':time.perf_counter_ns(),'count':len(xs)})
++ e.follow=follow;status='generated';error=None;before=dict(e.replays)
++ torch.cuda.synchronize();torch.cuda.reset_peak_memory_stats();start=time.perf_counter_ns()
++ try:
++  guard('request_start');first=api.prefill(e,ids,sampling,mtp=True,resume=None);callback([first]);pending=[first];hidden=scratch[:1];hidden.copy_(e.last_hidden)
++  while len(actual)<count and not(stops and actual[-1] in e.w.cfg.eos):
++   guard('each_decode')
++   limit=e.st.capacity if e.st.index is not None else e.w.cfg.dense_limit
++   room=limit-e.st.pos
++   if room<1:raise Unsupported('actual_position_exceeds_configured_envelope')
++   use=count-len(actual)>=2 and room>=2 and e.st.mtp_len+len(pending)<=limit
++   ds=api.draft(e,hidden,pending,e.st.pos+1,1,sampling) if use else []
++   ts=e.verify_window([actual[-1]]+ds);ds=ts[1:];R=len(ts);y=e.forward(ts);torch.cuda.synchronize()
++   sampled=e.sample(y[:R],[e.st.pos+1+r for r in range(R)],sampling)
++   keep=1+int(bool(ds) and sampled[0]==ds[0] and not(stops and sampled[0] in e.w.cfg.eos))
++   pos=e.st.pos;api.commit(e.w,e.st,e.buf,R,keep)
++   if e.st.pos!=pos+keep:raise ValueError('exact decode commit advance')
++   rounds+=1;proposals+=len(ds);accepted+=keep-1;keeps.append(keep);depths.append(len(ds))
++   e.follow(sampled[:keep]);callback(sampled[:keep]);pending=sampled[:keep];hidden=scratch[:keep];hidden.copy_(e.main_hidden(slice(0,keep)))
++  torch.cuda.synchronize();guard('request_finished')
++ except MemoryError as ex:raise SafetyAbort(str(ex)) from ex
++ except Unsupported as ex:status='unsupported';error=str(ex)
++ except (ValueError,RuntimeError,NotImplementedError) as ex:
++  if 'out of memory' in str(ex).lower():raise SafetyAbort(str(ex)) from ex
++  status='unsupported';error=type(ex).__name__+': '+str(ex)
++ finally:e.follow=old
++ end=time.perf_counter_ns()
++ if actual!=emitted or len(actual)>count or (status=='generated' and c['force_length'] and len(actual)!=count):raise ValueError('output/callback/count contract')
++ dt=(stamps[-1]['clock_ns']-stamps[0]['clock_ns'])/1e9 if len(stamps)>1 else None
++ ttft=(stamps[0]['clock_ns']-start)/1e9 if stamps else None
++ stop=actual[-1] if actual and stops and actual[-1] in e.w.cfg.eos else None
++ return dict(case_id=c.get('case_id',c.get('id')),collection_status=status,collection_errors=[error] if error else [],prompt_tokens=len(ids),requested_output_tokens=count,generated_tokens=len(actual),raw_output_ids=actual,raw_output=tok.decode(actual,skip_special_tokens=False),callback_ids=emitted,clock_events=stamps,finish_reason='unsupported' if status=='unsupported' else 'stop_token' if stop is not None else 'generation_limit',stop_token_id=stop,proposals=proposals,accepted=accepted,rounds=rounds,keeps=keeps,depths=depths,prefill_s=ttft,prefill_tok_s=len(ids)/ttft if ttft else None,decode_s=dt,decode_tok_s=(len(actual)-1)/dt if dt and status=='generated' else None,decode_tokens=max(0,len(actual)-1),wall_s=(end-start)/1e9,actual_state_position=e.st.pos,actual_MTP_position=e.st.mtp_len,peak_allocated=torch.cuda.max_memory_allocated(),peak_reserved=torch.cuda.max_memory_reserved(),graphreplay={k:e.replays[k]-before[k] for k in before},mtp_n=1,graphs=e.graphs is not None,CUDA_synchronized=True,clock_scope='CUDA-complete first-to-last emission; n-1 decode tokens; no file writes in interval')
+diff --git a/serving/server.py b/serving/server.py
+index 00806bbdc..06478e077 100644
+--- a/serving/server.py
++++ b/serving/server.py
+@@ -4,14 +4,14 @@ No model/source edits. Tools and native vision bridge, live prefix resume, exact
+ import argparse,collections,dataclasses,importlib.util,json,os,secrets,sys,time
+ from pathlib import Path
+ from types import SimpleNamespace
+-HERE=Path(__file__).resolve().parent;COPY=HERE.parent;ROOT=HERE.parents[2];STUDY=COPY.parent;STAGE='tfglm-thinking-v59-pipeline';MAX_OUTPUT=16384
++HERE=Path(__file__).resolve().parent;COPY=HERE.parent;ROOT=HERE.parents[2];STUDY=COPY.parent;STAGE='tfglm-mosaic-v59-pipeline';MAX_OUTPUT=16384
+ # context (since v58): 262,144 cache slots. The prompt ceiling leaves 4,096 tokens of reply inside the window.
+ SLOTS=262144;CONTEXT=SLOTS-128;MAX_PROMPT=CONTEXT-4096
+ # Host memory this copy keeps free. The inherited v42 guard and loader keep their own 20 GiB figure.
+-RESERVE_GIB=15
++RESERVE_GIB=5
+ # v42 measured 87,306,534,912 bytes reserved at 89,344 slots. The source geometry puts 262,144 slots
+ # 3.42 GiB above that; 3.5 GiB is added here. An estimate until this copy's own peak is measured.
+-PEAK_ESTIMATE=87306534912+3758096384
++PEAK_ESTIMATE=int(98.5*1024**3)  # mosaic: 90.55 GiB measured at 2,560 slots + 262K cache + vision + margin
+ LANDING_TEXT="I'll stop deliberating here, go with the most likely form, and proceed. Anything unverified I'll check with tools or flag."
+ 
+ def import_path(name,path):
+@@ -273,11 +273,11 @@ def reserve_guard(m,a,reserve):
+ 
+ def main():
+  p=argparse.ArgumentParser();p.add_argument('--model',type=Path,required=True);p.add_argument('--host-swap-baseline-bytes',type=int,required=True);a=p.parse_args()
+- m=import_path('serve_v42_readonly',ROOT/'context-v42/tensorfold/runner.py');m.STAGE=STAGE;m.ORIGINAL=COPY/'src'
++ m=import_path('serve_v42_readonly',HERE/'runner_v42_subset.py');m.STAGE=STAGE;m.ORIGINAL=COPY/'src'
+  a.stage=STAGE;a.authorized_guarded_gpu=True;m.authorize(a)
+  guard=reserve_guard(m,a,RESERVE_GIB*m.GIB);guard.events=collections.deque(maxlen=256);guard('serving_startup')
+  ns=dict(m.__dict__,MEASURED85=True,MEASURED_PEAK=PEAK_ESTIMATE)
+- exec(compile((ROOT/'accuracy-v43/runtime_loader.py').read_text(),'v43_owned_loader','exec'),ns)
++ exec(compile((HERE/'loader_mosaic.py').read_text(),'v43_owned_loader','exec'),ns)
+  runtime=ns['load_runtime'](a,{},dict(cache_slots=SLOTS,dense_limit=2051,long_context=True),guard)
+  e,tok,torch,api,Sampling,scratch,forward,hooks,admission=runtime
+  if not Path(api.__file__).resolve().is_relative_to((COPY/'src').resolve()):raise RuntimeError('Original TensorFold imported instead of source copy')
