@@ -1,5 +1,17 @@
 # GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10
 
+## Run it
+
+```bash
+git clone https://github.com/sxuff/glm53-flash-single-gb10 && cd glm53-flash-single-gb10 && ./run.sh
+```
+
+Expected: **30.73 tok/s** decode, mean of four prompt medians, single stream — receipt: [`results/glm53-mosaic-decode-20261005.json`](results/glm53-mosaic-decode-20261005.json). That figure was measured at 2,560 cache slots; `run.sh` serves the 262,144-slot profile below.
+
+`./run.sh --check` changes nothing and reports what it would do; `./run.sh --stop` stops the server. The script checks for a GB10 (SM121), 103.5 GiB of available memory (the loader's planned peak plus the 5 GiB reserve) and a free port 8002, which the server binds on 127.0.0.1 and cannot change. It then checks out TensorFold at the pinned commit and applies patches 01–04 and 07 after checking each one's SHA-256. It installs the hash-pinned `transformers==5.17.0` overlay the host used and downloads the checkpoint at the pinned revision, verifying every file by SHA-256. The large files' hashes come from the Hub's LFS metadata at that revision; the small ones were hashed from the Hub at that revision. Finally it starts the container in the background. `HF_TOKEN` is read from the environment only.
+
+The runtime image has to match the image ID under Recipe below. **It is not publicly pullable yet**, so on a machine without that image `run.sh` stops at the engine step.
+
 0xSero's GLM-5.3 Flash M288 Mosaic 12L (EXL3, 2.05 bpw with 12 layers of 3-bit experts) on one NVIDIA GB10, served by TensorFold 0.6.5 with exact MTP behind an OpenAI-compatible endpoint: 30.73 tok/s, 262,144-token context, vision, prompt state reused between turns.
 
 ![GLM-5.3 Flash M288 Mosaic 12L on one NVIDIA GB10: 30.73 tok/s with TensorFold](assets/glm53-mosaic-tensorfold-result-card.png)
@@ -70,18 +82,6 @@ git apply ../patches/04-stream-keepalive-content-delta.patch
 | [`04-stream-keepalive-content-delta.patch`](patches/04-stream-keepalive-content-delta.patch) | `629afcadb9bb833975f5995f28e3cf15ac6856ce0bcd038336da7db87daf890b` | Chat keep-alives send `{"content": ""}` instead of `{}`, so clients that ignore empty deltas do not time out during a long fill |
 
 `serving/server.py` runs inside the container. As published in patch 02 it imports a runner and a loader from the host it was written on, and `serving/supervisor.py` hands the GPU over from that host's other services. [`07-portable-launcher.patch`](patches/07-portable-launcher.patch) (SHA-256 `acb9011ec342d359a51d65741e6350d4c1face7986a69d7d5ae7ebf683dada42`) adds the runner functions the server calls and the mosaic loader, both copied unchanged from the host, and points `server.py` at them. With it, `server.py` matches the host copy that served the mosaic, including its 5 GiB reserve and 98.5 GiB peak estimate. The supervisor is not used; `run.sh` starts the container with the supervisor's own `docker run` flags.
-
-## Run it
-
-```bash
-git clone https://github.com/sxuff/glm53-flash-single-gb10 && cd glm53-flash-single-gb10 && ./run.sh
-```
-
-Expected: **30.73 tok/s** decode, mean of four prompt medians, single stream — receipt: [`results/glm53-mosaic-decode-20261005.json`](results/glm53-mosaic-decode-20261005.json). That figure was measured at 2,560 cache slots; `run.sh` serves the 262,144-slot profile below.
-
-`./run.sh --check` changes nothing and reports what it would do; `./run.sh --stop` stops the server. The script checks for a GB10 (SM121), 103.5 GiB of available memory (the loader's planned peak plus the 5 GiB reserve) and a free port 8002, which the server binds on 127.0.0.1 and cannot change. It then checks out TensorFold at the pinned commit and applies patches 01–04 and 07 after checking each one's SHA-256. It installs the hash-pinned `transformers==5.17.0` overlay the host used and downloads the checkpoint at the pinned revision, verifying every file by SHA-256. The large files' hashes come from the Hub's LFS metadata at that revision; the small ones were hashed from the Hub at that revision. Finally it starts the container in the background. `HF_TOKEN` is read from the environment only.
-
-The runtime image has to match the image ID above. **It is not publicly pullable yet**, so on a machine without that image `run.sh` stops at the engine step.
 
 ## Serving profile
 
